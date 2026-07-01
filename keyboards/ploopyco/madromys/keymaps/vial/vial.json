@@ -1,46 +1,31 @@
 {
-  "name": "PloopyCo Trackball",
+  "name": "Ploopy Adept Trackball",
   "vendorId": "0x5043",
-  "productId": "0x5442",
+  "productId": "0x5C47",
   "lighting": "none",
-  "customKeycodes": [
-    {"name": "DPI Config", "title": "DPI Config", "shortName": "DPI"},
-    {"name": "Drag Scroll", "title": "Drag Scroll", "shortName": "Drag\nScrl"}
-  ],
   "matrix": {"rows": 1, "cols": 6},
+  "customKeycodes": [
+    {"name": "DPI Cycle",       "title": "Cycle through the DPI options",             "shortName": "DPI↻"},
+    {"name": "DPI Up",          "title": "Increase DPI",                              "shortName": "DPI+"},
+    {"name": "DPI Down",        "title": "Decrease DPI",                              "shortName": "DPI-"},
+    {"name": "Drag Scroll Tog", "title": "Drag scroll: toggle",                       "shortName": "DrgTg"},
+    {"name": "Drag Scroll Mo",  "title": "Drag scroll: momentary (hold)",             "shortName": "DrgMo"},
+    {"name": "Status Report",   "title": "Type out current settings as text",         "shortName": "Status"},
+    {"name": "Drag Scroll Inv", "title": "Drag scroll: invert direction (toggle)",    "shortName": "DrgIv"},
+    {"name": "Arrows Tog",      "title": "Gesture set A (arrows): toggle (latching)",  "shortName": "ArrTg"},
+    {"name": "Arrows Hold",     "title": "Gesture set A (arrows): momentary hold",     "shortName": "ArrHd"},
+    {"name": "Editing Tog",     "title": "Gesture set B (editing): toggle (latching)", "shortName": "EdtTg"},
+    {"name": "Editing Hold",    "title": "Gesture set B (editing): momentary hold",    "shortName": "EdtHd"},
+    {"name": "Media Tog",       "title": "Gesture set C (media): toggle (latching)",   "shortName": "MedTg"},
+    {"name": "Media Hold",      "title": "Gesture set C (media): momentary hold",      "shortName": "MedHd"},
+    {"name": "Ambi Toggle",     "title": "Ambidextrous: toggle right/left-hand mode",  "shortName": "Ambi"},
+    {"name": "AutoMouse Thr",   "title": "Auto-mouse: adjust threshold (Ctrl x10, Shift inverts)", "shortName": "AM-Thr"},
+    {"name": "AutoMouse Time",  "title": "Auto-mouse: adjust timeout (Ctrl x10, Shift inverts)",   "shortName": "AM-Tim"}
+  ],
   "layouts": {
     "keymap": [
-      [
-        {
-          "h": 1.5
-        },
-        "0,0",
-        {
-          "x": -1,
-          "y": -1.7,
-          "h": 1.5
-        },
-        "0,1",
-        {
-          "x": 0.2
-        },
-        "0,2",
-        {
-          "x": 0.2
-        },
-        "0,3",
-        {
-          "x": 0.2,
-          "h": 1.5
-        },
-        "0,4",
-        {
-          "x": -1,
-          "y": 1.7,
-          "h": 1.5
-        },
-        "0,5"
-      ]
+      ["0,1", "0,2", "0,3", "0,4"],
+      [{"w": 1.75}, "0,0", {"x": 1.25, "w": 1.75}, "0,5"]
     ]
   }
 }
