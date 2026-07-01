@@ -1,21 +1,24 @@
 // Copyright 2025 Christopher Courtney, aka Drashna Jael're (@drashna)
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Ported from drashna's `drag_scroll` community module. See drag_scroll.h.
+// Fresh port of drashna's `drag_scroll` module. See drag_scroll.h. The scrolling
+// math in drag_scroll_apply() is drashna's canonical pointing_device_task_drag_scroll
+// verbatim: the running sum (x + remainder) is formed inline at full int width for
+// BOTH the divide and the modulo, and only the modulo (always bounded by the
+// divisor) is stored back into the int8 remainder. That is what keeps a firm,
+// fast roll from corrupting the wheel output under MOUSE_EXTENDED_REPORT (where
+// mouse_report.x/y are int16). Everything below drag_scroll_apply() is
+// keymap-only: invert, force-on via host lock LEDs, and live divisor tuning.
 
 #include QMK_KEYBOARD_H
 #include "drag_scroll.h"
 
 static bool set_scrolling = false;
 
-// When true, drag scroll is forced on and any request to turn it off is ignored.
-// Driven by the keymap from the host lock-LED state (see set_drag_scroll_force()).
-static bool force_scrolling = false;
-
 // Invert scroll output (toggled by DRG_INV). Default from DRAG_SCROLL_DEFAULT_INVERTED.
 static bool scroll_inverted = DRAG_SCROLL_DEFAULT_INVERTED;
 
-// Accumulated fractional scroll values
+// Accumulated fractional scroll values.
 static int8_t scroll_remainder_h = 0;
 static int8_t scroll_remainder_v = 0;
 
@@ -24,30 +27,29 @@ static int8_t scroll_divisor_v = (int8_t)SCROLL_DIVISOR_V;
 
 report_mouse_t drag_scroll_apply(report_mouse_t mouse_report) {
     if (set_scrolling) {
-        scroll_remainder_h += mouse_report.x;
-        scroll_remainder_v += mouse_report.y;
+        // drashna canonical: form (x + remainder) inline (promoted to int, so no
+        // int8 truncation of the sum), divide for the wheel tick, and store back
+        // only the modulo — which always fits int8.
+        mouse_report.h = (mouse_report.x + scroll_remainder_h) / scroll_divisor_h;
+        mouse_report.v = (mouse_report.y + scroll_remainder_v) / scroll_divisor_v;
 
-        mouse_report.h = scroll_remainder_h / scroll_divisor_h;
-        mouse_report.v = scroll_remainder_v / scroll_divisor_v;
+        scroll_remainder_h = (mouse_report.x + scroll_remainder_h) % scroll_divisor_h;
+        scroll_remainder_v = (mouse_report.y + scroll_remainder_v) % scroll_divisor_v;
 
-        // Keep the fractional remainder for the next report
-        scroll_remainder_h %= scroll_divisor_h;
-        scroll_remainder_v %= scroll_divisor_v;
-
-        // Movement is consumed into scrolling, so clear X/Y
+        // Movement is consumed into scrolling, so clear X/Y.
         mouse_report.x = 0;
         mouse_report.y = 0;
 
-        // Invert scroll output as the very last step. This runs AFTER the
-        // divide-and-remainder bookkeeping above, so scroll_remainder_h/v stay
-        // based on un-inverted raw accumulation — toggling invert mid-scroll
+        // Keymap extension: invert scroll output as the very last step. This runs
+        // AFTER the divide-and-remainder bookkeeping above, so scroll_remainder_h/v
+        // stay based on un-inverted raw accumulation — toggling invert mid-scroll
         // can't corrupt the fractional carry.
         if (scroll_inverted) {
             mouse_report.h = -mouse_report.h;
             mouse_report.v = -mouse_report.v;
         }
     } else {
-        // Clear leftover remainders when not scrolling
+        // Clear leftover remainders when not scrolling.
         scroll_remainder_h = 0;
         scroll_remainder_v = 0;
     }
@@ -100,24 +102,8 @@ __attribute__((weak)) bool set_drag_scroll_scrolling_user(bool scrolling) {
 }
 
 void set_drag_scroll_scrolling(bool scrolling) {
-    // While forced on (host lock LED active), ignore any request to turn off.
-    if (force_scrolling && !scrolling) {
-        return;
-    }
     set_scrolling = scrolling;
     set_drag_scroll_scrolling_user(scrolling);
-}
-
-void set_drag_scroll_force(bool force) {
-    force_scrolling = force;
-    if (force) {
-        set_drag_scroll_scrolling(true); // force on immediately
-    }
-    // Releasing the force does not turn scrolling off here; the caller decides.
-}
-
-bool get_drag_scroll_force(void) {
-    return force_scrolling;
 }
 
 bool get_drag_scroll_inverted(void) {

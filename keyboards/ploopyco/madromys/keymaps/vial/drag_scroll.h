@@ -1,9 +1,15 @@
 // Copyright 2025 Christopher Courtney, aka Drashna Jael're (@drashna)
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Ported from drashna's `drag_scroll` community module into a self-contained
-// keymap module. Community-module plumbing and custom keycodes removed; the
-// keymap drives this via drag_scroll_apply() and set/get_drag_scroll_scrolling().
+// Fresh port of drashna's `drag_scroll` community module
+// (https://github.com/drashna/qmk_modules/tree/main/drag_scroll) into a
+// self-contained keymap module. Community-module plumbing removed (the
+// ASSERT_COMMUNITY_MODULES_MIN_API_VERSION guard, the *_kb / *_user call
+// chaining, the DRAG_SCROLL_TOGGLE/MOMENTARY keycodes and their
+// process_record hook). The keymap drives this directly via drag_scroll_apply()
+// and set/get_drag_scroll_scrolling(). The core scroll math in drag_scroll.c is
+// drashna's verbatim; the invert / divisor-tuning helpers below are keymap-only
+// extensions.
 
 #pragma once
 
@@ -41,14 +47,6 @@ report_mouse_t drag_scroll_apply(report_mouse_t mouse_report);
 
 bool get_drag_scroll_scrolling(void);
 void set_drag_scroll_scrolling(bool scrolling);
-
-// Force drag scroll on regardless of manual control. While forced, drag scroll
-// stays on and any set_drag_scroll_scrolling(false) is ignored (button presses,
-// DRG_TOG, leaving the scroll layer, etc. cannot turn it off). Releasing the
-// force does NOT turn scrolling off by itself — the caller decides. Used by the
-// keymap to bind drag scroll to the host lock LEDs.
-void set_drag_scroll_force(bool force);
-bool get_drag_scroll_force(void);
 
 // Invert scroll output (negates both axes). Default: off (normal direction).
 bool get_drag_scroll_inverted(void);

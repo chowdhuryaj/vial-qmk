@@ -18,9 +18,8 @@
     {"name": "Editing Hold",    "title": "Gesture set B (editing): momentary hold",    "shortName": "EdtHd"},
     {"name": "Media Tog",       "title": "Gesture set C (media): toggle (latching)",   "shortName": "MedTg"},
     {"name": "Media Hold",      "title": "Gesture set C (media): momentary hold",      "shortName": "MedHd"},
-    {"name": "Ambi Toggle",     "title": "Ambidextrous: toggle right/left-hand mode",  "shortName": "Ambi"},
-    {"name": "AutoMouse Thr",   "title": "Auto-mouse: adjust threshold (Ctrl x10, Shift inverts)", "shortName": "AM-Thr"},
-    {"name": "AutoMouse Time",  "title": "Auto-mouse: adjust timeout (Ctrl x10, Shift inverts)",   "shortName": "AM-Tim"}
+    {"name": "PACS Nav Tog",    "title": "Gesture set D (PACS nav): toggle (latching)", "shortName": "PacTg"},
+    {"name": "PACS Nav Hold",   "title": "Gesture set D (PACS nav): momentary hold",    "shortName": "PacHd"}
   ],
   "layouts": {
     "keymap": [

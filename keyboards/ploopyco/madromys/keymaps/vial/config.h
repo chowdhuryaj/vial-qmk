@@ -17,28 +17,12 @@
 // 16-bit mouse reports so the acceleration curve has headroom on fast flicks.
 #define MOUSE_EXTENDED_REPORT
 
-// Auto-mouse: moving the trackball temporarily activates the _MOUSE layer.
-#define POINTING_DEVICE_AUTO_MOUSE_ENABLE
-#define AUTO_MOUSE_DEFAULT_LAYER 1
-#define AUTO_MOUSE_TIME 600
-// Sensor counts (raw, pre-acceleration) accumulated before auto-mouse fires.
-// At the default 1600 CPI, 100 counts ~= 1/16" of deliberate travel - was 10
-// (~1/160"), which fired on any stray jitter instead of an intentional flick.
-#define AUTO_MOUSE_THRESHOLD 100
-// Matches QMK core's implicit default; defined explicitly per the "mirror every
-// tunable in config.h" convention (behaviorally a no-op).
-#define AUTO_MOUSE_DEBOUNCE 25
-// Step sizes for the AM_TIME / AM_THR live-tuning keycodes (am_tuning.h).
-#define AUTO_MOUSE_TIME_STEP 50
-// 20 (vs. the old 5) so a plain press moves the new 100-count default by a
-// visible amount; Ctrl x10 (200/press) covers big jumps, Shift inverts.
-#define AUTO_MOUSE_THRESHOLD_STEP 20
 // Enables pd_dprintf() call sites (quantum/pointing_device_internal.h) across
-// core sensor drivers and this keymap's am_tuning.c. No-op until CONSOLE_ENABLE
-// (rules.mk) is also on and debug_enable is toggled at runtime (DB_TOGG). Live
-// tuning workflow: `qmk console`, press DB_TOGG, watch AM: lines while nudging
-// the ball / pressing AM_THR/AM_TIME. Comment out if console traffic isn't
-// wanted day-to-day - purely a debug-output flag, no functional effect.
+// core sensor drivers. No-op until CONSOLE_ENABLE (rules.mk) is also on and
+// debug_enable is toggled at runtime (DB_TOGG). Live-debug workflow: `qmk
+// console`, press DB_TOGG, watch the sensor trace while nudging the ball.
+// Comment out if console traffic isn't wanted day-to-day - purely a
+// debug-output flag, no functional effect.
 #define POINTING_DEVICE_DEBUG
 
 /* ---------------------------------------------------------------------------
@@ -74,20 +58,10 @@
 #define GESTURE_AUTO_EXIT
 
 /* ---------------------------------------------------------------------------
- * Wiggle ball (wiggle_ball) — shaking the ball left-right toggles drag scroll
- * ------------------------------------------------------------------------- */
-// Cooldown after a toggle before another wiggle is recognized.
-#define WIGGLE_BALL_TIMEOUT 250
-// Max gap between direction reversals to still count as the same shake.
-#define WIGGLE_BALL_DIRECTION_SWITCH_TIMEOUT 150
-// Perpendicular-axis movement allowed before a reversal is rejected as noise.
-#define WIGGLE_BALL_MOVEMENT_THRESHOLD 3
-
-/* ---------------------------------------------------------------------------
  * Drag scroll (drag_scroll) — larger divisor = slower scroll
  * ------------------------------------------------------------------------- */
-#define SCROLL_DIVISOR_H 40
-#define SCROLL_DIVISOR_V 64
+#define SCROLL_DIVISOR_H 16
+#define SCROLL_DIVISOR_V 16
 // Step size (and clamp range) for the DRG_DIV live-tuning keycode.
 #define SCROLL_DIVISOR_STEP 1
 #define SCROLL_DIVISOR_MIN 1

@@ -16,7 +16,3 @@ SRC += pd_accel.c
 SRC += pointing_device_smoothing.c
 SRC += pd_gestures.c
 SRC += drag_scroll.c
-SRC += wiggle_ball.c
-
-# Runtime tuning glue for QMK's built-in auto-mouse feature
-SRC += am_tuning.c
