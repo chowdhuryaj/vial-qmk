@@ -11,7 +11,7 @@
         {
             "name": "DPI Cycle",
             "title": "Cycle through the DPI options",
-            "shortName": "DPI\u21bb"
+            "shortName": "DPI\u27f3"
         },
         {
             "name": "DPI Up",
@@ -26,7 +26,7 @@
         {
             "name": "Drag Scroll Tog",
             "title": "Drag scroll: toggle",
-            "shortName": "DrgTg"
+            "shortName": "DrgTog"
         },
         {
             "name": "Drag Scroll Mo",
@@ -41,7 +41,7 @@
         {
             "name": "Drag Scroll Inv",
             "title": "Drag scroll: invert direction (toggle)",
-            "shortName": "DrgIv"
+            "shortName": "DrgInv"
         },
         {
             "name": "Gesture 1 Tog",
@@ -86,32 +86,32 @@
         {
             "name": "Select Word",
             "title": "Select current word; repeat extends. Shift held: select line (getreuer select_word)",
-            "shortName": "SELW"
+            "shortName": "SelW"
         },
         {
             "name": "Select Word Back",
             "title": "Select word backward; repeat extends (getreuer select_word)",
-            "shortName": "SELB"
+            "shortName": "SelB"
         },
         {
             "name": "Select Line",
             "title": "Select current line; repeat extends down (getreuer select_word)",
-            "shortName": "SELL"
+            "shortName": "SelL"
         },
         {
             "name": "Select Line Up",
             "title": "Select line upward; repeat extends up (getreuer select_word)",
-            "shortName": "SELU"
+            "shortName": "SelU"
         },
         {
             "name": "Sentence Case Tog",
             "title": "Toggle auto-capitalization after sentence endings (getreuer sentence_case); state persists",
-            "shortName": "SCTG"
+            "shortName": "SCase"
         },
         {
             "name": "Cust Shift Tog",
             "title": "Toggle custom shift keys (getreuer custom_shift_keys); slots edited in companion app",
-            "shortName": "CSKT"
+            "shortName": "CSK"
         },
         {
             "name": "Autoscroll Jog",
