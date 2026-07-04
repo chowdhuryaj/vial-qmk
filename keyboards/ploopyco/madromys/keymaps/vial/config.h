@@ -60,8 +60,16 @@
 // v8 = appended OS-aware shortcuts (+2 bytes: follow-detection switch,
 //      pinned mac/pc mode). SIZE unchanged.
 // v9 = appended wheel-chords hold delay (+2 bytes). SIZE unchanged.
-#define EECONFIG_USER_DATA_SIZE 512
-#define EECONFIG_USER_DATA_VERSION 9
+// v10 = appended per-combo layer masks (+128 bytes: u16 x 64 combos, bit N =
+//       combo may fire while layer N is highest). SIZE 512 → 768.
+#define EECONFIG_USER_DATA_SIZE 768
+#define EECONFIG_USER_DATA_VERSION 10
+
+// Per-combo layer gating (ZMK-style "layers = [...]"): compiles the
+// combo_should_trigger() hook into quantum/process_combo.c; the
+// implementation in keymap.c consults the combo_layer_masks table
+// (HID channel 0x20, persisted in mad_config).
+#define COMBO_SHOULD_TRIGGER
 
 /* ---------------------------------------------------------------------------
  * Auto-mouse (QMK core POINTING_DEVICE_AUTO_MOUSE_ENABLE, re-added 2026-07-03

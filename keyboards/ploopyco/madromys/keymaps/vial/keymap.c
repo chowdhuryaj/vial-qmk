@@ -254,6 +254,25 @@ void leader_end_user(void) {
 }
 
 /* ---------------------------------------------------------------------------
+ * Per-combo layer gating (ZMK-style "layers = [...]", 2026-07-04)
+ *
+ * Vial's dynamic combos are keycode-matched with no layer concept. This adds
+ * one: a u16 mask per combo slot — bit N allows the combo while layer N is
+ * the highest active layer. Default 0xFFFF keeps stock behavior. The hook
+ * compiles in via COMBO_SHOULD_TRIGGER (config.h); quantum/process_combo.c
+ * declares the weak default this overrides. Edited over HID channel 0x20,
+ * persisted in mad_config.
+ * ------------------------------------------------------------------------- */
+static uint16_t combo_layer_masks[VIAL_COMBO_ENTRIES];
+
+// Weak default in quantum/process_keycode/process_combo.c:98.
+bool combo_should_trigger(uint16_t combo_index, combo_t *combo, uint16_t keycode, keyrecord_t *record) {
+    if (combo_index >= VIAL_COMBO_ENTRIES) return true;
+    uint8_t layer = get_highest_layer(layer_state | default_layer_state);
+    return (combo_layer_masks[combo_index] & ((uint16_t)1 << layer)) != 0;
+}
+
+/* ---------------------------------------------------------------------------
  * Persisted settings (EEPROM user datablock)
  *
  * RAM mirror of the EECONFIG_USER_DATA_SIZE datablock. The core validity word
@@ -312,6 +331,9 @@ typedef struct __attribute__((packed)) {
     uint8_t  os_mac;
     // Wheel chords hold delay (v9): ms held before capture engages.
     uint16_t wc_hold_ms;
+    // Per-combo layer masks (v10): bit N set = combo may fire while layer N
+    // is the highest active layer. 0xFFFF (default) = all layers.
+    uint16_t combo_layer_masks[VIAL_COMBO_ENTRIES];
 } mad_config_t;
 _Static_assert(sizeof(mad_config_t) <= EECONFIG_USER_DATA_SIZE, "mad_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -474,6 +496,11 @@ static void mad_config_set_defaults(void) {
             mad_config.gesture_sets[s][d] = gesture_set_defaults[s][d];
         }
     }
+    // Combo layer masks default to all-layers — zero would silently disable
+    // every combo everywhere.
+    for (uint8_t c = 0; c < VIAL_COMBO_ENTRIES; c++) {
+        mad_config.combo_layer_masks[c] = 0xFFFF;
+    }
 }
 
 // Push every persisted value into the modules' runtime state. Module setters
@@ -523,6 +550,7 @@ static void mad_config_apply(void) {
     // follow re-applies any detection that fired before this ran.
     os_shortcuts_set_mac(mad_config.os_mac != 0);
     os_shortcuts_set_follow(mad_config.os_follow != 0);
+    memcpy(combo_layer_masks, mad_config.combo_layer_masks, sizeof(combo_layer_masks));
 }
 
 /* ---------------------------------------------------------------------------
@@ -899,7 +927,7 @@ void keyboard_post_init_user(void) {
 //      + freeze-diagnostic channel (0x1F: pointing-gap watermark, uptime).
 //      (0x1E is num word, Svalboard-only — unhandled here.)
 // v8 = wheel-chords hold delay (0x1C/0x03: ms held before capture engages).
-#define MAD_HID_PROTOCOL_VERSION 8
+#define MAD_HID_PROTOCOL_VERSION 9
 
 enum mad_hid_channel {
     mad_ch_meta       = 0x00, // 0x01: protocol version (read-only)
@@ -918,6 +946,7 @@ enum mad_hid_channel {
     mad_ch_wheelchords = 0x1C, // button-held ball gestures (v6)
     mad_ch_os         = 0x1D, // OS-aware shortcuts (v7)
     mad_ch_diag       = 0x1F, // freeze diagnostic (v7; nothing persists)
+    mad_ch_combolayers = 0x20, // per-combo layer masks (v9)
 };
 
 enum mad_hid_meta_value {
@@ -1064,6 +1093,13 @@ enum mad_hid_os_value {
 enum mad_hid_diag_value {
     mad_diag_max_gap_id = 0x01, // GET: largest ms gap between pointing passes since reset; SET (any) resets
     mad_diag_uptime_id  = 0x02, // RO: seconds since boot (u16, wraps ~18 h)
+};
+
+enum mad_hid_combolayers_value {
+    mad_cl_count_id  = 0x01, // RO: number of combo slots (== VIAL_COMBO_ENTRIES)
+    // Masks: 0x10 + combo index. u16 payload, bit N = allowed while layer N
+    // is highest. Raw, unclamped (extra high bits are harmless on 8 layers).
+    mad_cl_mask_base = 0x10,
 };
 
 // Decodes a leader-slot wire id into (sequence, position). pos 0..4 are the
@@ -1267,6 +1303,17 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 case mad_diag_uptime_id: mad_hid_write_u16(payload, pipeline_diag_uptime_s()); return true;
                 default: return false;
             }
+
+        case mad_ch_combolayers:
+            if (value_id == mad_cl_count_id) {
+                mad_hid_write_u16(payload, VIAL_COMBO_ENTRIES);
+                return true;
+            }
+            if (value_id >= mad_cl_mask_base && value_id < mad_cl_mask_base + VIAL_COMBO_ENTRIES) {
+                mad_hid_write_u16(payload, combo_layer_masks[value_id - mad_cl_mask_base]);
+                return true;
+            }
+            return false;
 
         default:
             return false;
@@ -1543,6 +1590,14 @@ static bool mad_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
             return false;
 
+        case mad_ch_combolayers:
+            // mad_cl_count_id is read-only.
+            if (value_id >= mad_cl_mask_base && value_id < mad_cl_mask_base + VIAL_COMBO_ENTRIES) {
+                combo_layer_masks[value_id - mad_cl_mask_base] = mad_hid_read_u16(payload);
+                return true;
+            }
+            return false;
+
         default:
             return false;
     }
@@ -1618,6 +1673,9 @@ static bool mad_hid_save(uint8_t channel) {
         case mad_ch_os:
             mad_config.os_follow = os_shortcuts_get_follow() ? 1 : 0;
             mad_config.os_mac    = os_shortcuts_get_mac() ? 1 : 0;
+            break;
+        case mad_ch_combolayers:
+            memcpy(mad_config.combo_layer_masks, combo_layer_masks, sizeof(mad_config.combo_layer_masks));
             break;
         default:
             return false;
