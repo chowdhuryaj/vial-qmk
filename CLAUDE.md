@@ -45,18 +45,19 @@ keycodes) and then runs the real build.
 | `keymaps/vial/keymap.c` | Layers, the custom keycode enum, `process_record_user`, the `pointing_device_task_user` pipeline, status report, **plus**: the `mad_config_t` EEPROM datablock (every persisted tunable incl. DPI), the 8 dynamic gesture set tables (`gesture_sets`), and the companion-app raw HID handler (`raw_hid_receive_kb`). |
 | `keymaps/vial/vial.json` | Vial GUI layout + `customKeycodes[]`. Must stay length-matched with the enum — see the rule below. |
 | `keymaps/vial/rules.mk` | Feature enables (VIA/VIAL/COMBO/TAP_DANCE/KEY_OVERRIDE/LEADER/DEFERRED_EXEC) + `SRC +=` for every ported module `.c`. |
-| `keymaps/vial/pd_accel.c/.h` | Acceleration curve (ported from drashna `pointing_device_accel`). |
-| `keymaps/vial/pointing_device_smoothing.c/.h` | EMA smoothing (ported from drashna `pointing_device_smoothing`). |
+| `keymaps/vial/shared/pd_accel.c/.h` | Acceleration curve (ported from drashna `pointing_device_accel`). |
+| `keymaps/vial/shared/pointing_device_smoothing.c/.h` | EMA smoothing (ported from drashna `pointing_device_smoothing`). |
 | `keymaps/vial/pd_gestures.c/.h` | Directional flick gestures (ported from drashna `pointing_device_gestures`; renamed `pd_gestures_*` because QMK core already has a *different* built-in `pointing_device_gestures` — cursor glide — and the names would collide). **8 directions since 2026-07-02** (E SE S SW W NW N NE); empty diagonals fall back to the nearest cardinal. |
 | `keymaps/vial/drag_scroll.c/.h` | Drag-to-scroll (ported from drashna `drag_scroll`). Controls: manual keycodes (`DRG_TOG`/`DRG_MO`/`DRG_INV`), the `DRAG_SCROLL_LAYER` binding, and (re-added 2026-07-02) wiggle_ball's shake-to-toggle. Host-lock-LED force stays removed. |
 | `keymaps/vial/wiggle_ball.c/.h` | Shake-to-toggle drag scroll (drashna `wiggle_ball`; removed 2026-07-01, **re-added 2026-07-02** on fresh user ask for the companion-app project — old quirk stands, see Drag-scroll history). All three detection params are runtime + HID-tunable, plus an **enabled kill switch** (HID `0x12/0x04`, persisted) added after accidental shake-toggles froze the cursor during normal fast movement. |
-| `keymaps/vial/custom_shift_keys.c/.h` | Per-key Shift replacements — Shift+key types something else (ported 2026-07-03 from **getreuer**/qmk-modules, not drashna). Dynamic 16-slot RAM table + enable flag; HID channel `0x16`; persisted. `CSK_TOG` keycode. |
-| `keymaps/vial/select_word.c/.h` | Word/line selection (getreuer port). Keycodes `SELWORD`/`SELWDBK`/`SELLINE`/`SELLNUP`; Mac-vs-Win hotkey style is a runtime bool (HID `0x17/0x01`, persisted, default mac). Needs `select_word_on_record` + `select_word_task` called from keymap.c (they are). |
-| `keymaps/vial/sentence_case.c/.h` | Auto-capitalize after ". "/"! "/"? " (getreuer port). `SC_TOG` keycode; on/off at HID `0x18/0x01`, persisted. Requires one-shot keys — never define `NO_ACTION_ONESHOT`. |
-| `keymaps/vial/autoscroll.c/.h` | Hands-free continuous scroll (Ben White radiology AHK + Contour Shuttle jog model, added 2026-07-03). `ASC_JOG` = ball becomes jog wheel (deflection = speed, motion swallowed); `ASC_UP`/`ASC_DOWN` step ±9 speed levels through zero. Any other key press auto-exits. HID `0x1A`; 4 persisted tunables + live-state rescue value. **Gotcha: `AS_UP`/`AS_DOWN` collide with QMK core Auto Shift keycode aliases (keycodes.h:1526) — hence the `ASC_` prefix.** |
-| `keymaps/vial/os_shortcuts.c/.h` | OS-aware Cut/Copy/Paste/Undo/Redo (2026-07-03): mac mode = ⌘ hotkeys, pc = ^; follows QMK OS detection (`OS_DETECTION_ENABLE`, a generic feature — plain enable works) unless pinned. HID `0x1D`. Same file ships in the Svalboard flask keymap — keep identical. `process_detected_host_os_kb` override in keymap.c also mirrors detection into select word. |
-| `keymaps/vial/pipeline_diag.c/.h` | Freeze diagnostic (2026-07-03): watermark of the largest gap between pointing-task passes, HID `0x1F` (GET reads, SET resets; uptime at `0x02`). Built to localize the reported random 1-2 s cursor freezes (firmware loop vs sensor/host). Flask shows it as the Mouse tab's "Health" module. Also ships in the Svalboard flask keymap. |
-| `keymaps/vial/wheel_chords.c/.h` | Button-held ball gestures (2026-07-03): hold BTN1..8 + roll → 8-direction keycodes, pd_gestures ratchet feel; click never suppressed, motion swallowed only while the held button has ≥1 slot. HID `0x1C`. Physical BTN state tracked in `process_record_user` incl. LT/MT tap halves. |
+| `keymaps/vial/shared/custom_shift_keys.c/.h` | Per-key Shift replacements — Shift+key types something else (ported 2026-07-03 from **getreuer**/qmk-modules, not drashna). Dynamic 16-slot RAM table + enable flag; HID channel `0x16`; persisted. `CSK_TOG` keycode. |
+| `keymaps/vial/shared/select_word.c/.h` | Word/line selection (getreuer port). Keycodes `SELWORD`/`SELWDBK`/`SELLINE`/`SELLNUP`; Mac-vs-Win hotkey style is a runtime bool (HID `0x17/0x01`, persisted, default mac). Needs `select_word_on_record` + `select_word_task` called from keymap.c (they are). |
+| `keymaps/vial/shared/sentence_case.c/.h` | Auto-capitalize after ". "/"! "/"? " (getreuer port). `SC_TOG` keycode; on/off at HID `0x18/0x01`, persisted. Requires one-shot keys — never define `NO_ACTION_ONESHOT`. |
+| `keymaps/vial/shared/autoscroll.c/.h` | Hands-free continuous scroll (Ben White radiology AHK + Contour Shuttle jog model, added 2026-07-03). `ASC_JOG` = ball becomes jog wheel (deflection = speed, motion swallowed); `ASC_UP`/`ASC_DOWN` step ±9 speed levels through zero. Any other key press auto-exits. HID `0x1A`; 4 persisted tunables + live-state rescue value. **Gotcha: `AS_UP`/`AS_DOWN` collide with QMK core Auto Shift keycode aliases (keycodes.h:1526) — hence the `ASC_` prefix.** |
+| `keymaps/vial/shared/os_shortcuts.c/.h` | OS-aware Cut/Copy/Paste/Undo/Redo (2026-07-03): mac mode = ⌘ hotkeys, pc = ^; follows QMK OS detection (`OS_DETECTION_ENABLE`, a generic feature — plain enable works) unless pinned. HID `0x1D`. `process_detected_host_os_kb` override in keymap.c also mirrors detection into select word. |
+| `keymaps/vial/shared/pipeline_diag.c/.h` | Freeze diagnostic (2026-07-03): watermark of the largest gap between pointing-task passes, HID `0x1F` (GET reads, SET resets; uptime at `0x02`). Built to localize the reported random 1-2 s cursor freezes (firmware loop vs sensor/host). Flask shows it as the Mouse tab's "Health" module. |
+| `keymaps/vial/shared/wheel_chords.c/.h` | Button-held ball gestures (2026-07-03): hold BTN1..8 + roll → 8-direction keycodes, pd_gestures ratchet feel; click never suppressed, motion swallowed only while the held button has ≥1 slot. HID `0x1C`. Physical BTN state tracked in `process_record_user` incl. LT/MT tap halves. |
+| `keymaps/vial/shared/` | **Git submodule** (added 2026-07-04), not a plain subdir — see "Shared module submodule" section below. All 9 rows above live here now; edit them in place (the submodule checkout) or in the standalone `~/qmk-flask-modules` repo, never re-create a local copy directly in this keymap dir. |
 | `keymaps/vial/check.sh` | Validator. Run after every edit. |
 | `~/AdeptCompanion/` (outside this repo) | **"Flask"** — the macOS SwiftUI companion app (SPM: `AdeptCore` lib + `Flask` executable target; dir name kept). Speaks the raw HID protocol below **and** (since 2026-07-02) the stock VIA+Vial protocol — it is a full Vial editor (keymap/macros/tap dance/combos/gestures/mouse chords/QMK settings/matrix tester/unlock), replacing the Vial GUI for this device. UI is a Swift port of Pipette's design (darakuneko/pipette-desktop). `AdeptCore/KeycodeDB.swift`'s `customKeys` mirrors the custom-keycode enum — THE keycode rule applies to it too. Gotcha: Vial dynamic-entry SET frames are `[0xFE,0x0D,op,idx,entry…]` — entry at byte 4, NO pad byte (a pad byte shipped garbage tap dances once). `swift run` to launch from source, `./make-app.sh` to build `Flask.app`. |
 
@@ -290,7 +291,51 @@ combo completes — there is no abort** (replug recovers). RGB via VIA lighting
 IDs is permanently off the table on this firmware: `VIA_CUSTOM_LIGHTING_ENABLE`
 routes 0x07–0x09 to the tuning handler. Don't run Vial GUI and the app together.
 
+## Shared module submodule (added 2026-07-04)
+
+`keymaps/vial/shared/` is a **git submodule**, not a plain subdirectory. It
+points at the standalone repo `~/qmk-flask-modules`, which holds the 9 ported
+module `.c`/`.h` pairs that are byte-identical across every Flask-speaking
+firmware — currently this repo (Adept) and `~/svalboard-vial-qmk`
+(Svalboard, `keyboards/svalboard/keymaps/flask/shared/` — same submodule,
+same commit, added the same way). Goal: any future QMK-Vial device that wants
+the Flask feature set clones the same submodule instead of re-porting or
+copy-pasting.
+
+**Current shared set (9 pairs, 18 files):** `os_shortcuts`, `pipeline_diag`,
+`pd_accel`, `pointing_device_smoothing`, `select_word`, `sentence_case`,
+`custom_shift_keys`, `wheel_chords`, `autoscroll`. **Not shared** (Adept-only:
+`pd_gestures.c/.h`, `drag_scroll.c/.h`, `wiggle_ball.c/.h`; Svalboard-only:
+`num_word.c/.h`, `support_flask.c`, `mad_hid.c`, `flask_tuning.h`) — these stay
+local to each keymap, either because only one device uses them or because
+they've diverged (drag_scroll/wiggle_ball have Adept-specific history, see
+"Drag-scroll history" below).
+
+**Mechanics, current state:** the submodule's `url` in `.gitmodules` is a bare
+local path (`/Users/aj/qmk-flask-modules`) — works on this machine only, no
+remote pushed yet. `git submodule add` itself is blocked by this environment's
+sandboxing for `file://` transports; the submodule was wired by hand (plain
+`git clone` of the local repo into the target path + hand-written
+`.gitmodules` entry + `git add` of the resulting embedded repo, which git
+auto-detects as a gitlink). If `~/qmk-flask-modules` ever needs to be cloned
+on another machine, or CI needs it, push it to a real remote first and update
+both `.gitmodules` files' `url` to that remote.
+
+**Editing a shared module:** edit the files under either firmware's
+`keymaps/*/shared/` (they're the same submodule checkout in spirit — commit
+inside `~/qmk-flask-modules` directly, or `cd` into either repo's `shared/`
+dir, since both currently point at the same local clone target). Bump the
+submodule's own commit and update both firmware repos' recorded submodule SHA
+so they don't drift. Never fork the content — that reintroduces the exact
+duplication this submodule exists to remove. `SRC += shared/<name>.c` in
+`rules.mk` and `#include "shared/<name>.h"` in the consuming `.c` files are
+the only firmware-repo-side changes a shared-module edit needs.
+
 ## Porting strategy (for any future drashna module)
+0. If the module will ship on more than one Flask-speaking device (currently
+   Adept + Svalboard), build it directly in `~/qmk-flask-modules` and consume
+   it via the `shared/` submodule (see above) instead of this keymap dir —
+   don't port it locally first and move it later.
 1. Read the module's `.c`/`.h` in `~/drashna-modules-reference/<module>/`.
 2. Strip community-module plumbing (`ASSERT_COMMUNITY_MODULES_MIN_API_VERSION`,
    `_kb` call chaining, VIA/EEPROM integration, its own custom keycodes).

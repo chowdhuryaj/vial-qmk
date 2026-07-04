@@ -22,19 +22,19 @@
 
 #include "via.h"
 
-#include "pd_accel.h"
-#include "pointing_device_smoothing.h"
+#include "shared/pd_accel.h"
+#include "shared/pointing_device_smoothing.h"
 #include "pd_gestures.h"
 #include "drag_scroll.h"
 #include "wiggle_ball.h"
-#include "custom_shift_keys.h"
-#include "select_word.h"
-#include "sentence_case.h"
-#include "autoscroll.h"
-#include "wheel_chords.h"
-#include "os_shortcuts.h"
+#include "shared/custom_shift_keys.h"
+#include "shared/select_word.h"
+#include "shared/sentence_case.h"
+#include "shared/autoscroll.h"
+#include "shared/wheel_chords.h"
+#include "shared/os_shortcuts.h"
 #include "os_detection.h"
-#include "pipeline_diag.h"
+#include "shared/pipeline_diag.h"
 
 /* ---------------------------------------------------------------------------
  * Layers

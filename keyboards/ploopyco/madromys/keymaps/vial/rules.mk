@@ -24,28 +24,28 @@ OPT_DEFS += -DPOINTING_DEVICE_AUTO_MOUSE_ENABLE
 SRC += $(QUANTUM_DIR)/pointing_device/pointing_device_auto_mouse.c
 
 # Ported drashna pointing-device modules
-SRC += pd_accel.c
-SRC += pointing_device_smoothing.c
+SRC += shared/pd_accel.c
+SRC += shared/pointing_device_smoothing.c
 SRC += pd_gestures.c
 SRC += drag_scroll.c
 SRC += wiggle_ball.c
 
 # Ported getreuer typing modules
-SRC += custom_shift_keys.c
-SRC += select_word.c
-SRC += sentence_case.c
+SRC += shared/custom_shift_keys.c
+SRC += shared/select_word.c
+SRC += shared/sentence_case.c
 
 # Autoscroll (Ben White / Contour Shuttle model)
-SRC += autoscroll.c
+SRC += shared/autoscroll.c
 
 # Wheel chords (button-held ball gestures, 2026-07-03)
-SRC += wheel_chords.c
+SRC += shared/wheel_chords.c
 
 # OS-aware editing shortcuts (2026-07-03). OS detection is a generic feature
 # (builddefs/generic_features.mk) — plain enable works, no hand-wiring needed
 # (unlike auto-mouse above).
 OS_DETECTION_ENABLE = yes
-SRC += os_shortcuts.c
+SRC += shared/os_shortcuts.c
 
 # Freeze diagnostic (2026-07-03): pointing-pipeline gap watermark, HID 0x1F.
-SRC += pipeline_diag.c
+SRC += shared/pipeline_diag.c
