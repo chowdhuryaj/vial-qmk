@@ -32,6 +32,11 @@
 #    define POINTING_DEVICE_SMOOTHING_TIMEOUT_STEP 25
 #endif
 
+// Ceiling for the reset timeout (HID tuning + increment clamp; floor is 0).
+#ifndef POINTING_DEVICE_SMOOTHING_TIMEOUT_MAX
+#    define POINTING_DEVICE_SMOOTHING_TIMEOUT_MAX 1000
+#endif
+
 // Apply exponential-moving-average smoothing to a mouse report.
 report_mouse_t pointing_device_smoothing_apply(report_mouse_t mouse_report);
 

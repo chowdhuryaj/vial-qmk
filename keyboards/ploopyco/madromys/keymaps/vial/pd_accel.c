@@ -29,24 +29,26 @@ float pd_accel_get_takeoff(void) {
     return g_pd_accel_config.takeoff;
 }
 void pd_accel_set_takeoff(float val) {
-    if (val >= 0.5f) { // value less than 0.5 leads to nonsensical results
-        g_pd_accel_config.takeoff = val;
-    }
+    if (val < POINTING_DEVICE_ACCEL_TAKEOFF_MIN) val = POINTING_DEVICE_ACCEL_TAKEOFF_MIN;
+    if (val > POINTING_DEVICE_ACCEL_TAKEOFF_MAX) val = POINTING_DEVICE_ACCEL_TAKEOFF_MAX;
+    g_pd_accel_config.takeoff = val;
 }
 
 float pd_accel_get_growth_rate(void) {
     return g_pd_accel_config.growth_rate;
 }
 void pd_accel_set_growth_rate(float val) {
-    if (val >= 0) {
-        g_pd_accel_config.growth_rate = val;
-    }
+    if (val < 0) val = 0;
+    if (val > POINTING_DEVICE_ACCEL_GROWTH_RATE_MAX) val = POINTING_DEVICE_ACCEL_GROWTH_RATE_MAX;
+    g_pd_accel_config.growth_rate = val;
 }
 
 float pd_accel_get_offset(void) {
     return g_pd_accel_config.offset;
 }
 void pd_accel_set_offset(float val) {
+    if (val < POINTING_DEVICE_ACCEL_OFFSET_MIN) val = POINTING_DEVICE_ACCEL_OFFSET_MIN;
+    if (val > POINTING_DEVICE_ACCEL_OFFSET_MAX) val = POINTING_DEVICE_ACCEL_OFFSET_MAX;
     g_pd_accel_config.offset = val;
 }
 
@@ -54,9 +56,9 @@ float pd_accel_get_limit(void) {
     return g_pd_accel_config.limit;
 }
 void pd_accel_set_limit(float val) {
-    if (val >= 0) {
-        g_pd_accel_config.limit = val;
-    }
+    if (val < 0) val = 0;
+    if (val > POINTING_DEVICE_ACCEL_LIMIT_MAX) val = POINTING_DEVICE_ACCEL_LIMIT_MAX;
+    g_pd_accel_config.limit = val;
 }
 
 void pd_accel_set_enabled(bool enable) {

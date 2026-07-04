@@ -30,6 +30,28 @@
 #ifndef POINTING_DEVICE_ACCEL_LIMIT
 #    define POINTING_DEVICE_ACCEL_LIMIT 0.2f
 #endif
+
+// HID tuning clamp ranges (also enforced by the setters below, not just the
+// wire handler in keymap.c — so a keymap.c bug can't smuggle an out-of-range
+// value past the module).
+#ifndef POINTING_DEVICE_ACCEL_TAKEOFF_MIN
+#    define POINTING_DEVICE_ACCEL_TAKEOFF_MIN 0.5f
+#endif
+#ifndef POINTING_DEVICE_ACCEL_TAKEOFF_MAX
+#    define POINTING_DEVICE_ACCEL_TAKEOFF_MAX 10.0f
+#endif
+#ifndef POINTING_DEVICE_ACCEL_GROWTH_RATE_MAX
+#    define POINTING_DEVICE_ACCEL_GROWTH_RATE_MAX 2.0f
+#endif
+#ifndef POINTING_DEVICE_ACCEL_OFFSET_MIN
+#    define POINTING_DEVICE_ACCEL_OFFSET_MIN -10.0f
+#endif
+#ifndef POINTING_DEVICE_ACCEL_OFFSET_MAX
+#    define POINTING_DEVICE_ACCEL_OFFSET_MAX 10.0f
+#endif
+#ifndef POINTING_DEVICE_ACCEL_LIMIT_MAX
+#    define POINTING_DEVICE_ACCEL_LIMIT_MAX 1.0f
+#endif
 // milliseconds to wait between requesting the device's current DPI
 #ifndef POINTING_DEVICE_ACCEL_CPI_THROTTLE_MS
 #    define POINTING_DEVICE_ACCEL_CPI_THROTTLE_MS 200

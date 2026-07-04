@@ -62,15 +62,22 @@ int8_t get_drag_scroll_h_divisor(void) {
 int8_t get_drag_scroll_v_divisor(void) {
     return scroll_divisor_v;
 }
+// Divisors are denominators — clamp so a raw setter call (e.g. from the HID
+// tuning path) can never install 0 and divide-by-zero the scroll math.
+static int8_t clamp_divisor(int8_t divisor) {
+    if (divisor < SCROLL_DIVISOR_MIN) return SCROLL_DIVISOR_MIN;
+    if (divisor > SCROLL_DIVISOR_MAX) return SCROLL_DIVISOR_MAX;
+    return divisor;
+}
 void set_drag_scroll_h_divisor(int8_t divisor) {
-    scroll_divisor_h = divisor;
+    scroll_divisor_h = clamp_divisor(divisor);
 }
 void set_drag_scroll_v_divisor(int8_t divisor) {
-    scroll_divisor_v = divisor;
+    scroll_divisor_v = clamp_divisor(divisor);
 }
 void set_drag_scroll_divisor(int8_t divisor) {
-    scroll_divisor_h = divisor;
-    scroll_divisor_v = divisor;
+    scroll_divisor_h = clamp_divisor(divisor);
+    scroll_divisor_v = clamp_divisor(divisor);
 }
 
 // Modifier-adjusted step (Ctrl x10, Shift inverts).

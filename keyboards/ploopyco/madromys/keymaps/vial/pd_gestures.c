@@ -20,8 +20,27 @@ static const uint16_t *pdg_table  = NULL;
 static int32_t         pdg_acc_x  = 0;
 static int32_t         pdg_acc_y  = 0;
 
+// Runtime ratchet step. Seeded from the compile-time default;
+// keyboard_post_init_user overwrites it with the EEPROM-persisted value, and
+// the companion app adjusts it live over raw HID.
+static uint16_t pdg_ratchet_step = PD_GESTURES_RATCHET_STEP;
+
+uint16_t pd_gestures_get_ratchet_step(void) {
+    return pdg_ratchet_step;
+}
+
+void pd_gestures_set_ratchet_step(uint16_t step) {
+    if (step < PD_GESTURES_RATCHET_STEP_MIN) step = PD_GESTURES_RATCHET_STEP_MIN;
+    if (step > PD_GESTURES_RATCHET_STEP_MAX) step = PD_GESTURES_RATCHET_STEP_MAX;
+    pdg_ratchet_step = step;
+}
+
 bool pd_gestures_is_active(void) {
     return pdg_active;
+}
+
+bool pd_gestures_is_active_table(const uint16_t *table) {
+    return pdg_active && pdg_table == table;
 }
 
 static void pdg_reset_accum(void) {
@@ -37,7 +56,9 @@ static bool pdg_reached(int32_t x, int32_t y, uint16_t thresh) {
     return d2 >= t2;
 }
 
-// 4-way bin of the accumulated vector. 0=E 1=S 2=W 3=N (East, then clockwise).
+// 8-way bin of the accumulated vector, 45° sectors. Mouse coordinates have +y
+// pointing south, so atan2's positive angles run E→SE→S: 0=E 1=SE 2=S 3=SW
+// 4=W 5=NW 6=N 7=NE (East, then clockwise).
 static uint8_t pdg_direction(int32_t x, int32_t y) {
     float     r     = atan2f((float)y, (float)x);
     float     d     = 180.0f * r / (float)M_PI;
@@ -46,11 +67,25 @@ static uint8_t pdg_direction(int32_t x, int32_t y) {
     return ((id + 360 + 360 / split / 2) % 360 / (360 / split)) % split;
 }
 
-static void pdg_fire(uint8_t direction) {
+static void pdg_fire(uint8_t direction, int32_t x, int32_t y) {
     if (pdg_table == NULL || direction >= PD_GESTURES_NUM_DIRECTIONS) {
         return;
     }
     uint16_t keycode = pdg_table[direction];
+    // Empty diagonal falls back to the nearest cardinal by dominant axis, so a
+    // set that only fills E/S/W/N behaves exactly like the old 90°-sector
+    // binning (a rough-east flick that lands in SE still fires E).
+    if (keycode == KC_NO && (direction & 1)) {
+        uint8_t cardinal;
+        int64_t ax = x < 0 ? -(int64_t)x : (int64_t)x;
+        int64_t ay = y < 0 ? -(int64_t)y : (int64_t)y;
+        if (ax >= ay) {
+            cardinal = (x >= 0) ? 0 : 4; // E or W
+        } else {
+            cardinal = (y >= 0) ? 2 : 6; // S or N (mouse +y = south)
+        }
+        keycode = pdg_table[cardinal];
+    }
     if (keycode != KC_NO) {
         tap_code16(keycode);
     }
@@ -100,9 +135,9 @@ report_mouse_t pd_gestures_apply(report_mouse_t mouse_report) {
     pdg_acc_x += dx;
     pdg_acc_y += dy;
 
-    // Fire one key per RATCHET_STEP of travel, then reset the accumulator.
-    if (pdg_reached(pdg_acc_x, pdg_acc_y, PD_GESTURES_RATCHET_STEP)) {
-        pdg_fire(pdg_direction(pdg_acc_x, pdg_acc_y));
+    // Fire one key per ratchet step of travel, then reset the accumulator.
+    if (pdg_reached(pdg_acc_x, pdg_acc_y, pdg_ratchet_step)) {
+        pdg_fire(pdg_direction(pdg_acc_x, pdg_acc_y), pdg_acc_x, pdg_acc_y);
         pdg_reset_accum();
     }
 

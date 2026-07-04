@@ -21,7 +21,18 @@ keycodes) and then runs the real build.
   (config.h, info.json, post_rules.mk, rev1_001/keyboard.json) were
   reconstructed from mainline QMK — see git history if a sibling board
   (mouse/trackball/trackball_thumb) needs the same treatment.
-- Leader Key is NOT supported by Vial.
+- Vial dynamic entries are pinned in keymap config.h since 2026-07-03: **32
+  tap dances, 32 combos, 32 key overrides** (`VIAL_*_ENTRIES`;
+  `KEY_OVERRIDE_ENABLE`/`LEADER_ENABLE` in rules.mk). Emulated EEPROM doubled:
+  `WEAR_LEVELING_BACKING_SIZE 16384` / `LOGICAL_SIZE 8192` — changing these
+  reformats the EEPROM region (every persisted setting re-seeds on boot).
+- Leader Key: the old "NOT supported by Vial" note meant the **Vial GUI**.
+  QMK core `LEADER_ENABLE` is ON since 2026-07-03, with **dynamic sequences**
+  (8 slots × up to 5 keys → 1 output keycode) stored in `mad_config`, edited
+  over HID channel `0x19`, matched in `leader_end_user` (keymap.c). `QK_LEAD`
+  = 0x7C58, placeable from Flask. Gotcha: `leader_sequence[5]` /
+  `leader_sequence_size` are extern'd in keymap.c — quantum/leader.h only
+  exposes fixed-arity prefix matchers, which can't length-check.
 
 ## File map — exact responsibility per file
 | File | Responsibility |
@@ -30,15 +41,24 @@ keycodes) and then runs the real build.
 | `keyboards/ploopyco/madromys/info.json` | USB VID/PID, physical layout (`LAYOUT()` shape), `dynamic_keymap.layer_count` (8 — 0-3 real, 4-7 spare blanks). |
 | `keyboards/ploopyco/madromys/post_rules.mk` | `POINTING_DEVICE_DRIVER = pmw3360`. |
 | `keyboards/ploopyco/madromys/rev1_001/keyboard.json` | Matrix pins, diode direction, ws2812/rgblight wiring for this PCB rev. |
-| `keymaps/vial/config.h` | **Every tuning parameter and feature define lives here.** First file to check for "change a default" requests. Also carries `POINTING_DEVICE_DEBUG` (live-tuning console output — see below). |
-| `keymaps/vial/keymap.c` | Layers, the custom keycode enum, `process_record_user`, the `pointing_device_task_user` pipeline, DPI/EEPROM state, status report. |
+| `keymaps/vial/config.h` | **Every tuning parameter and feature define lives here.** First file to check for "change a default" requests. Also carries `POINTING_DEVICE_DEBUG` (live-tuning console output — see below), `VIA_CUSTOM_LIGHTING_ENABLE` + `EECONFIG_USER_DATA_SIZE/VERSION` (companion-app raw HID protocol + EEPROM datablock — see that section), and the HID clamp-range mirrors. |
+| `keymaps/vial/keymap.c` | Layers, the custom keycode enum, `process_record_user`, the `pointing_device_task_user` pipeline, status report, **plus**: the `mad_config_t` EEPROM datablock (every persisted tunable incl. DPI), the 8 dynamic gesture set tables (`gesture_sets`), and the companion-app raw HID handler (`raw_hid_receive_kb`). |
 | `keymaps/vial/vial.json` | Vial GUI layout + `customKeycodes[]`. Must stay length-matched with the enum — see the rule below. |
-| `keymaps/vial/rules.mk` | Feature enables (VIA/VIAL/COMBO/TAP_DANCE/DEFERRED_EXEC) + `SRC +=` for every ported module `.c`. |
+| `keymaps/vial/rules.mk` | Feature enables (VIA/VIAL/COMBO/TAP_DANCE/KEY_OVERRIDE/LEADER/DEFERRED_EXEC) + `SRC +=` for every ported module `.c`. |
 | `keymaps/vial/pd_accel.c/.h` | Acceleration curve (ported from drashna `pointing_device_accel`). |
 | `keymaps/vial/pointing_device_smoothing.c/.h` | EMA smoothing (ported from drashna `pointing_device_smoothing`). |
-| `keymaps/vial/pd_gestures.c/.h` | Directional flick gestures (ported from drashna `pointing_device_gestures`; renamed `pd_gestures_*` because QMK core already has a *different* built-in `pointing_device_gestures` — cursor glide — and the names would collide). |
-| `keymaps/vial/drag_scroll.c/.h` | Drag-to-scroll (ported from drashna `drag_scroll`). No wiggle/shake control and no host-lock-LED force — both were removed 2026-07-01; manual keycodes (`DRG_TOG`/`DRG_MO`/`DRG_INV`) and the `DRAG_SCROLL_LAYER` binding are the only controls now. |
+| `keymaps/vial/pd_gestures.c/.h` | Directional flick gestures (ported from drashna `pointing_device_gestures`; renamed `pd_gestures_*` because QMK core already has a *different* built-in `pointing_device_gestures` — cursor glide — and the names would collide). **8 directions since 2026-07-02** (E SE S SW W NW N NE); empty diagonals fall back to the nearest cardinal. |
+| `keymaps/vial/drag_scroll.c/.h` | Drag-to-scroll (ported from drashna `drag_scroll`). Controls: manual keycodes (`DRG_TOG`/`DRG_MO`/`DRG_INV`), the `DRAG_SCROLL_LAYER` binding, and (re-added 2026-07-02) wiggle_ball's shake-to-toggle. Host-lock-LED force stays removed. |
+| `keymaps/vial/wiggle_ball.c/.h` | Shake-to-toggle drag scroll (drashna `wiggle_ball`; removed 2026-07-01, **re-added 2026-07-02** on fresh user ask for the companion-app project — old quirk stands, see Drag-scroll history). All three detection params are runtime + HID-tunable, plus an **enabled kill switch** (HID `0x12/0x04`, persisted) added after accidental shake-toggles froze the cursor during normal fast movement. |
+| `keymaps/vial/custom_shift_keys.c/.h` | Per-key Shift replacements — Shift+key types something else (ported 2026-07-03 from **getreuer**/qmk-modules, not drashna). Dynamic 16-slot RAM table + enable flag; HID channel `0x16`; persisted. `CSK_TOG` keycode. |
+| `keymaps/vial/select_word.c/.h` | Word/line selection (getreuer port). Keycodes `SELWORD`/`SELWDBK`/`SELLINE`/`SELLNUP`; Mac-vs-Win hotkey style is a runtime bool (HID `0x17/0x01`, persisted, default mac). Needs `select_word_on_record` + `select_word_task` called from keymap.c (they are). |
+| `keymaps/vial/sentence_case.c/.h` | Auto-capitalize after ". "/"! "/"? " (getreuer port). `SC_TOG` keycode; on/off at HID `0x18/0x01`, persisted. Requires one-shot keys — never define `NO_ACTION_ONESHOT`. |
+| `keymaps/vial/autoscroll.c/.h` | Hands-free continuous scroll (Ben White radiology AHK + Contour Shuttle jog model, added 2026-07-03). `ASC_JOG` = ball becomes jog wheel (deflection = speed, motion swallowed); `ASC_UP`/`ASC_DOWN` step ±9 speed levels through zero. Any other key press auto-exits. HID `0x1A`; 4 persisted tunables + live-state rescue value. **Gotcha: `AS_UP`/`AS_DOWN` collide with QMK core Auto Shift keycode aliases (keycodes.h:1526) — hence the `ASC_` prefix.** |
+| `keymaps/vial/os_shortcuts.c/.h` | OS-aware Cut/Copy/Paste/Undo/Redo (2026-07-03): mac mode = ⌘ hotkeys, pc = ^; follows QMK OS detection (`OS_DETECTION_ENABLE`, a generic feature — plain enable works) unless pinned. HID `0x1D`. Same file ships in the Svalboard flask keymap — keep identical. `process_detected_host_os_kb` override in keymap.c also mirrors detection into select word. |
+| `keymaps/vial/pipeline_diag.c/.h` | Freeze diagnostic (2026-07-03): watermark of the largest gap between pointing-task passes, HID `0x1F` (GET reads, SET resets; uptime at `0x02`). Built to localize the reported random 1-2 s cursor freezes (firmware loop vs sensor/host). Flask shows it as the Mouse tab's "Health" module. Also ships in the Svalboard flask keymap. |
+| `keymaps/vial/wheel_chords.c/.h` | Button-held ball gestures (2026-07-03): hold BTN1..8 + roll → 8-direction keycodes, pd_gestures ratchet feel; click never suppressed, motion swallowed only while the held button has ≥1 slot. HID `0x1C`. Physical BTN state tracked in `process_record_user` incl. LT/MT tap halves. |
 | `keymaps/vial/check.sh` | Validator. Run after every edit. |
+| `~/AdeptCompanion/` (outside this repo) | **"Flask"** — the macOS SwiftUI companion app (SPM: `AdeptCore` lib + `Flask` executable target; dir name kept). Speaks the raw HID protocol below **and** (since 2026-07-02) the stock VIA+Vial protocol — it is a full Vial editor (keymap/macros/tap dance/combos/gestures/mouse chords/QMK settings/matrix tester/unlock), replacing the Vial GUI for this device. UI is a Swift port of Pipette's design (darakuneko/pipette-desktop). `AdeptCore/KeycodeDB.swift`'s `customKeys` mirrors the custom-keycode enum — THE keycode rule applies to it too. Gotcha: Vial dynamic-entry SET frames are `[0xFE,0x0D,op,idx,entry…]` — entry at byte 4, NO pad byte (a pad byte shipped garbage tap dances once). `swift run` to launch from source, `./make-app.sh` to build `Flask.app`. |
 
 ## THE keycode rule — read before adding/removing any custom keycode
 `vial.json`'s `customKeycodes[i]` always maps to firmware keycode `QK_KB_0 + i`
@@ -89,8 +109,8 @@ four keycode slots each (`{on_tap, on_hold, on_double_tap, on_tap_hold}` +
    silently doesn't compile the file in; the keycode no-ops at runtime).
 4. If you override a QMK core weak function, comment which file defines the
    weak default — a future edit shouldn't redefine it again (duplicate strong
-   symbol = link error) or assume no override exists. (No keymap file currently
-   does this; auto-mouse's `am_tuning.c` override was removed 2026-07-01.)
+   symbol = link error) or assume no override exists. (Current overrides:
+   `raw_hid_receive_kb` in `keymap.c`, weak default at `quantum/via.c:188`.)
 5. Never format floats with `snprintf`'s `%f` in this codebase — this
    build's libc doesn't reliably support it on RP2040. Use the existing
    `fmt2()` helper in `keymap.c` (integer math), and clamp any new value to
@@ -123,10 +143,11 @@ auto-mouse were both removed 2026-07-01 (see "Removed features" below).
   here); wheel up/down on Top-Left/Top-Right; same BTN1/BTN2 positions as
   `_BASE`/`_MOUSE`, BTN3 on Top-Left-Left. This is `DRAG_SCROLL_LAYER` — entering
   it turns drag scroll on, leaving turns it off (`layer_state_set_user`).
-- `_FN` (3): gesture-set-D ("PACS nav") latch (`GRD_TOG`), DPI cycle, a Vial
-  macro slot (`MC_0`, authored in the Vial GUI), debug-console toggle (`DB_TOGG`),
-  bootloader. Top-Left-Left is free (`KC_NO`) — was `AMBI_TOG` before the
-  ambidextrous removal; bind anything via Vial.
+- `_FN` (3): DPI cycle, a Vial macro slot (`MC_0`, authored in the Vial GUI),
+  debug-console toggle (`DB_TOGG`), bootloader. Top-Left-Left and Top-Left are
+  both free (`KC_NO`) — Top-Left-Left was `AMBI_TOG` before the ambidextrous
+  removal, Top-Left was gesture-set-D ("PACS nav") latch (`GRD_TOG`) before
+  that set's removal (2026-07-01); bind anything via Vial.
 
 ## Removed features — auto-mouse & ambidextrous (removed 2026-07-01)
 Both stripped at user request to cut complexity; don't re-add without a fresh ask.
@@ -144,17 +165,20 @@ Both stripped at user request to cut complexity; don't re-add without a fresh as
 Two drag-scroll control paths were built, hardware-tested as unreliable, and
 **removed 2026-07-01** — don't reintroduce either without addressing why they
 failed:
-- **Wiggle-to-toggle** (`wiggle_ball.c/.h`, ported from drashna `wiggle_ball`):
-  shake detection and the toggle itself worked (confirmed on hardware — a second
-  shake correctly un-froze the cursor), but scroll engaged *by a wiggle*
+- **Wiggle-to-toggle** (`wiggle_ball.c/.h`, ported from drashna `wiggle_ball`)
+  — **RE-ADDED 2026-07-02** on an explicit fresh user ask (the condition below
+  was informed consent, not a fix): restored verbatim from git `d6838c042e`,
+  with all three detection parameters made runtime + HID-tunable for the
+  companion app. The original bug report stands unresolved: shake detection
+  and the toggle itself worked (confirmed on hardware — a second shake
+  correctly un-froze the cursor), but scroll engaged *by a wiggle* sometimes
   produced no wheel output, while the exact same `set_drag_scroll_scrolling()`
   call from the `DRG_TOG` keycode scrolled fine. Every pipeline stage was read
   and traced; both paths are provably identical from `set_drag_scroll_scrolling`
   through `drag_scroll_apply()`, so the divergence was never root-caused — no
   console output was obtainable to see live values (`DB_TOGG` + `qmk console`
-  produced nothing, twice). Removed rather than debugged further per user
-  request. If revisited: get console output working FIRST (that was the actual
-  blocker), then re-port from `~/drashna-modules-reference/wiggle_ball/`.
+  produced nothing, twice). If it resurfaces, the raw HID channel is now the
+  live-values path the qmk console never provided.
 - **Host lock-LED force-on** (`set_drag_scroll_force`/`get_drag_scroll_force` in
   `drag_scroll.c/.h`, `led_update_user` in `keymap.c`): forced drag scroll on
   while caps/num/scroll lock was active. Removed alongside wiggle at the same
@@ -178,6 +202,93 @@ press `DB_TOGG` again when done. This is compile-time gated (`POINTING_DEVICE_DE
 rather than always-on so it can be stripped later with a one-line config.h change
 if unwanted. (Historically this also fed `am_tuning.c`'s auto-mouse trace, removed
 2026-07-01.)
+
+## Companion-app raw HID tuning protocol (added Phases 0-3, 2026-07-02)
+A native macOS app (`~/AdeptCompanion/`, SwiftUI + IOKit) live-tunes every
+module parameter over QMK raw HID — the thing Vial's GUI can't do. Firmware
+side lives entirely in `keymap.c` (`raw_hid_receive_kb` + `mad_config_t`).
+
+**Transport:** `VIA_CUSTOM_LIGHTING_ENABLE` (keymap config.h) makes
+`quantum/via.c` route command IDs `0x07`/`0x08`/`0x09` (VIA v3-style
+custom_set/get/save) to `raw_hid_receive_kb` instead of dead-ending them.
+Verified safe: no lighting feature compiled, vial.json `"lighting": "none"`,
+all of Vial's own traffic is behind the `0xFE` prefix. Frame:
+`[cmd, channel, value_id, payload...]`, u16 big-endian payloads (×100 for
+float params; accel offset is the one signed field; bools 0/1). Unknown
+anything → firmware sets `data[0] = 0xFF` (id_unhandled). The handler must
+NOT call `raw_hid_send()` — via.c echoes the buffer itself.
+
+**Channels** (0x10+ dodges VIA's reserved 0–5; full value table lives in
+`keymap.c`'s `mad_hid_*` enums and mirrors `Sources/AdeptCore/AdeptProtocol.swift`):
+`0x00` meta (protocol version, currently **7**) · `0x10` accel · `0x11`
+gestures (`0x01` ratchet step; `0x02` active set — GET index/0xFF, SET 0xFF
+cancels or index toggles through the GR#_TOG guard path; **slots**: cardinals
+`0x10 + set*4 + c` (c 0=E 1=S 2=W 3=N → internal dir c*2), diagonals
+`0x30 + set*4 + d` (d 0=SE 1=SW 2=NW 3=NE → internal dir d*2+1); raw QMK
+keycode payload, unclamped) · `0x12` wiggle (+`0x04` enabled kill switch,
+v3) · `0x13` smoothing · `0x14` dpi (table index; persists immediately,
+save is a no-op) · `0x15` dragscroll (+`0x04` live scrolling state, v3 —
+GET = freeze diagnostic, SET = force on/off, never persisted) · **v4
+channels (2026-07-03):** `0x16` custom shift keys (`0x01` enabled, `0x02`
+slot count RO, keycode `0x10+slot`, shifted `0x30+slot`, 16 slots) · `0x17`
+select word (`0x01` mac-hotkeys bool) · `0x18` sentence case (`0x01` enabled)
+· `0x19` leader (slots `0x10 + seq*8 + pos`; pos 0-4 = keys, 5 = output;
+8 sequences) · **v5:** `0x1A` autoscroll (`0x01` inverted, `0x02` speed scale
+x100 [25,400], `0x03` jog deadzone [0,200], `0x04` jog range [50,2000],
+`0x05` live state — GET signed level/±100 jogging, SET force-stops, never
+persisted) · **v6 (2026-07-03):** `0x1B` auto-mouse (`0x01` enabled, `0x02`
+timeout ms [100,5000], `0x03` threshold counts [0,60]; core feature hand-wired
+in rules.mk — plain `POINTING_DEVICE_AUTO_MOUSE_ENABLE = yes` is inert in this
+fork) + `0x1C` wheel chords (`0x01` enabled, `0x02` step [50,2000], slots
+`0x10 + button*8 + dir`, 8 buttons × 8 dirs, raw keycodes, fires via
+tap_code16) · **v7 (2026-07-03):** `0x1D` OS-aware shortcuts (`0x01` follow
+detection, `0x02` mac/pc mode — SET also mirrors into select word, `0x03`
+detected os_variant_t RO; keycodes OS_CUT/OS_COPY/OS_PSTE/OS_UNDO/OS_REDO,
+os_shortcuts.c + OS_DETECTION_ENABLE) + `0x1F` freeze diagnostic (`0x01`
+pointing-gap watermark ms — GET reads, SET resets; `0x02` uptime seconds RO;
+pipeline_diag.c, nothing persists). `0x1E` num word is **Svalboard-only**
+(unhandled here). Protocol currently **7**; EEPROM datablock VERSION **8**.
+Gestures are **8-direction** since v3 (`PD_GESTURES_NUM_DIRECTIONS 8`,
+internal order E SE S SW W NW N NE); an empty diagonal slot falls back to
+the nearest cardinal by dominant axis, so 4-way sets keep their old feel.
+
+**Semantics:** GET/SET act on live module runtime state (setters clamp);
+SAVE snapshots live state into `mad_config` per-channel and writes the whole
+datablock. Persistence = `EECONFIG_USER_DATA_SIZE`/`VERSION` datablock
+(config.h) — **bump VERSION on any `mad_config_t` layout change** (append-only
+growth otherwise), which re-seeds all tunables from config.h defaults on next
+boot. Value IDs are append-only per channel, same spirit as THE keycode rule.
+
+**Hard-won rules (hardware-verified 2026-07-02):**
+- Clamp in wire-width (u16) space BEFORE any narrowing cast — a bare
+  `(int8_t)` cast wrapped 200 → −56 → clamped to MIN instead of MAX on real
+  hardware. Same class of bug existed for u8 casts.
+- Module setters CLAMP, never reject — smoothing's inherited
+  reject-if-out-of-range guard silently ignored writes until fixed.
+- Verify every new value on hardware with the throwaway script pattern
+  (get → set in-range → set out-of-range expecting clamp → save → power-cycle
+  → re-get); the two bugs above were invisible to a clean `-Werror` build.
+
+**Dynamic gesture sets (2026-07-02):** 8 sets × 4 directions (E/S/W/N), RAM
+tables in `keymap.c` (`gesture_sets`), seeded 1=arrows 2=editing 3=media
+4=app/tab-nav, 5–8 empty. Toggle keycodes `GR1_TOG..GR8_TOG` (replaced
+GRA/GRB/GRC/GRN in-place at indices 7–10 + appended 11–14). Guard: an
+all-KC_NO set can't be toggled ON (would freeze the cursor), but a latched
+set can always toggle OFF. Slots fire via `tap_code16` → basic keycodes +
+C()/S()/A()/G() combos only; NO Vial macros / layer keys / QK_KB_* customs in
+slots (rerouting through `vial_keycode_tap` was declined 2026-07-02 to avoid
+touching a proven pipeline — revisit only on user ask).
+
+**App as Vial editor (2026-07-02):** the companion app now ALSO speaks the
+stock VIA/Vial protocol (keymap, macros, tap dance, combos, QMK settings,
+matrix tester, unlock) — no firmware surface was added; it just talks to
+`quantum/via.c`/`vial.c` like the Vial GUI does. Facts that matter firmware-side:
+unlock-gated = macro writes (silently ignored while locked), matrix-state read,
+bootloader jump; keymap and dynamic-entry writes need NO unlock; **once
+`vial_unlock_start` fires, the device only answers unlock commands until the
+combo completes — there is no abort** (replug recovers). RGB via VIA lighting
+IDs is permanently off the table on this firmware: `VIA_CUSTOM_LIGHTING_ENABLE`
+routes 0x07–0x09 to the tuning handler. Don't run Vial GUI and the app together.
 
 ## Porting strategy (for any future drashna module)
 1. Read the module's `.c`/`.h` in `~/drashna-modules-reference/<module>/`.

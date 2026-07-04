@@ -27,9 +27,11 @@ float pointing_device_smoothing_get_factor(void) {
 }
 
 void pointing_device_smoothing_set_factor(float factor) {
-    if (factor >= 0.0f && factor <= 1.0f) {
-        smooth_factor = factor;
-    }
+    // Clamp (not reject) so out-of-range input degrades to the boundary —
+    // matches every other module setter; the HID handler relies on this.
+    if (factor < 0.0f) factor = 0.0f;
+    if (factor > 1.0f) factor = 1.0f;
+    smooth_factor = factor;
 }
 
 uint32_t pointing_device_smoothing_get_reset_timeout(void) {
@@ -37,6 +39,7 @@ uint32_t pointing_device_smoothing_get_reset_timeout(void) {
 }
 
 void pointing_device_smoothing_set_reset_timeout(uint32_t timeout_ms) {
+    if (timeout_ms > POINTING_DEVICE_SMOOTHING_TIMEOUT_MAX) timeout_ms = POINTING_DEVICE_SMOOTHING_TIMEOUT_MAX;
     smooth_reset_timeout = timeout_ms;
 }
 
