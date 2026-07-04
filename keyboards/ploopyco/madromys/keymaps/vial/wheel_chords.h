@@ -33,10 +33,22 @@
 #    define WHEEL_CHORDS_ENABLED_DEFAULT true
 #endif
 
+// Hold delay (2026-07-03, user ask): capture only engages after the button
+// has been held this long, so a quick click-drag stays a normal drag and a
+// deliberate hold becomes a chord. 0 = capture immediately (old behavior).
+#ifndef WHEEL_CHORDS_HOLD_MS_DEFAULT
+#    define WHEEL_CHORDS_HOLD_MS_DEFAULT 200
+#endif
+#ifndef WHEEL_CHORDS_HOLD_MS_MAX
+#    define WHEEL_CHORDS_HOLD_MS_MAX 1000
+#endif
+
 bool     wheel_chords_get_enabled(void);
 void     wheel_chords_set_enabled(bool enabled);
 uint16_t wheel_chords_get_step(void);
 void     wheel_chords_set_step(uint16_t step);
+uint16_t wheel_chords_get_hold_ms(void);
+void     wheel_chords_set_hold_ms(uint16_t ms);
 
 // The 8x8 slot table (buttons x directions), raw QMK keycodes. Returned as a
 // pointer so the keymap can memcpy to/from its EEPROM snapshot.

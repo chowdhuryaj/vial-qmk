@@ -14,10 +14,12 @@
 static uint16_t wc_table[WHEEL_CHORDS_BUTTONS][WHEEL_CHORDS_DIRECTIONS];
 static bool     wc_enabled = WHEEL_CHORDS_ENABLED_DEFAULT;
 static uint16_t wc_step    = WHEEL_CHORDS_STEP_DEFAULT;
+static uint16_t wc_hold_ms = WHEEL_CHORDS_HOLD_MS_DEFAULT;
 static uint8_t  wc_held    = 0; // bitmask, bit 0 = BTN1
 static int32_t  wc_acc_x   = 0;
 static int32_t  wc_acc_y   = 0;
 static int8_t   wc_active_button = -1; // button whose table we're firing
+static uint32_t wc_press_time    = 0;  // when the active button became active
 
 bool wheel_chords_get_enabled(void) {
     return wc_enabled;
@@ -39,6 +41,15 @@ void wheel_chords_set_step(uint16_t step) {
     if (step < WHEEL_CHORDS_STEP_MIN) step = WHEEL_CHORDS_STEP_MIN;
     if (step > WHEEL_CHORDS_STEP_MAX) step = WHEEL_CHORDS_STEP_MAX;
     wc_step = step;
+}
+
+uint16_t wheel_chords_get_hold_ms(void) {
+    return wc_hold_ms;
+}
+
+void wheel_chords_set_hold_ms(uint16_t ms) {
+    if (ms > WHEEL_CHORDS_HOLD_MS_MAX) ms = WHEEL_CHORDS_HOLD_MS_MAX;
+    wc_hold_ms = ms;
 }
 
 uint16_t (*wheel_chords_table(void))[WHEEL_CHORDS_DIRECTIONS] {
@@ -70,11 +81,15 @@ void wheel_chords_on_button(uint8_t button, bool pressed) {
     }
     if (wc_active_button != previous) {
         wc_acc_x = wc_acc_y = 0; // fresh gesture per chord
+        wc_press_time = timer_read32();
     }
 }
 
 bool wheel_chords_capturing(void) {
-    return wc_enabled && wc_active_button >= 0;
+    if (!wc_enabled || wc_active_button < 0) return false;
+    // Hold delay: motion during a quick click-drag passes through as normal
+    // cursor movement; only a deliberate hold turns the ball into a chord.
+    return wc_hold_ms == 0 || timer_elapsed32(wc_press_time) >= wc_hold_ms;
 }
 
 // Same squared-compare as pd_gestures (no sqrt, no 32-bit overflow).

@@ -59,8 +59,9 @@
 //      8x8 u16 slot table). SIZE 352 → 512.
 // v8 = appended OS-aware shortcuts (+2 bytes: follow-detection switch,
 //      pinned mac/pc mode). SIZE unchanged.
+// v9 = appended wheel-chords hold delay (+2 bytes). SIZE unchanged.
 #define EECONFIG_USER_DATA_SIZE 512
-#define EECONFIG_USER_DATA_VERSION 8
+#define EECONFIG_USER_DATA_VERSION 9
 
 /* ---------------------------------------------------------------------------
  * Auto-mouse (QMK core POINTING_DEVICE_AUTO_MOUSE_ENABLE, re-added 2026-07-03
@@ -96,6 +97,9 @@
 #define WHEEL_CHORDS_STEP_DEFAULT 200
 #define WHEEL_CHORDS_STEP_MIN 50
 #define WHEEL_CHORDS_STEP_MAX 2000
+// Hold delay before capture engages (quick click-drag stays a normal drag).
+#define WHEEL_CHORDS_HOLD_MS_DEFAULT 200
+#define WHEEL_CHORDS_HOLD_MS_MAX 1000
 
 /* ---------------------------------------------------------------------------
  * OS-aware shortcuts (os_shortcuts.c/.h, 2026-07-03)

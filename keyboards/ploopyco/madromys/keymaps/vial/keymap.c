@@ -310,6 +310,8 @@ typedef struct __attribute__((packed)) {
     // OS-aware shortcuts (v8): follow-detection switch + pinned mac/pc mode.
     uint8_t  os_follow;
     uint8_t  os_mac;
+    // Wheel chords hold delay (v9): ms held before capture engages.
+    uint16_t wc_hold_ms;
 } mad_config_t;
 _Static_assert(sizeof(mad_config_t) <= EECONFIG_USER_DATA_SIZE, "mad_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -462,6 +464,7 @@ static void mad_config_set_defaults(void) {
         // wc_table zero-fills (all slots empty) via the struct literal.
         .os_follow            = OS_SHORTCUTS_FOLLOW_DEFAULT ? 1 : 0,
         .os_mac               = OS_SHORTCUTS_MAC_DEFAULT ? 1 : 0,
+        .wc_hold_ms           = WHEEL_CHORDS_HOLD_MS_DEFAULT,
     };
     // The struct literal above zero-fills gesture_sets (KC_NO everywhere) and
     // likewise the custom-shift-key table and leader sequences (all empty);
@@ -514,6 +517,7 @@ static void mad_config_apply(void) {
     mad_automouse_apply();
     wheel_chords_set_enabled(mad_config.wc_enabled != 0);
     wheel_chords_set_step(mad_config.wc_step);
+    wheel_chords_set_hold_ms(mad_config.wc_hold_ms);
     memcpy(wheel_chords_table(), mad_config.wc_table, sizeof(mad_config.wc_table));
     // Order matters: set the pinned mode first, then follow — enabling
     // follow re-applies any detection that fired before this ran.
@@ -894,7 +898,8 @@ void keyboard_post_init_user(void) {
 // v7 = OS-aware shortcuts channel (0x1D: follow, mac mode, detected OS RO)
 //      + freeze-diagnostic channel (0x1F: pointing-gap watermark, uptime).
 //      (0x1E is num word, Svalboard-only — unhandled here.)
-#define MAD_HID_PROTOCOL_VERSION 7
+// v8 = wheel-chords hold delay (0x1C/0x03: ms held before capture engages).
+#define MAD_HID_PROTOCOL_VERSION 8
 
 enum mad_hid_channel {
     mad_ch_meta       = 0x00, // 0x01: protocol version (read-only)
@@ -1043,6 +1048,7 @@ enum mad_hid_automouse_value {
 enum mad_hid_wheelchords_value {
     mad_wc_enabled_id = 0x01,
     mad_wc_step_id    = 0x02, // counts per gesture fire
+    mad_wc_hold_ms_id = 0x03, // v8: ms held before capture engages (0 = immediate)
     // Slot keycodes: 0x10 + button*8 + dir (button 0..7 = BTN1..BTN8,
     // dir = internal pd_gestures order E SE S SW W NW N NE). Raw QMK
     // keycode payload, unclamped — what fires is limited by tap_code16.
@@ -1230,6 +1236,10 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
             if (value_id == mad_wc_step_id) {
                 mad_hid_write_u16(payload, wheel_chords_get_step());
+                return true;
+            }
+            if (value_id == mad_wc_hold_ms_id) {
+                mad_hid_write_u16(payload, wheel_chords_get_hold_ms());
                 return true;
             }
             if (value_id >= mad_wc_slot_base && value_id < mad_wc_slot_base + WHEEL_CHORDS_BUTTONS * 8) {
@@ -1490,6 +1500,11 @@ static bool mad_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 mad_hid_write_u16(payload, wheel_chords_get_step());
                 return true;
             }
+            if (value_id == mad_wc_hold_ms_id) {
+                wheel_chords_set_hold_ms(mad_hid_read_u16(payload));
+                mad_hid_write_u16(payload, wheel_chords_get_hold_ms());
+                return true;
+            }
             if (value_id >= mad_wc_slot_base && value_id < mad_wc_slot_base + WHEEL_CHORDS_BUTTONS * 8) {
                 uint8_t slot = value_id - mad_wc_slot_base;
                 uint8_t btn = slot / 8, dir = slot % 8;
@@ -1597,6 +1612,7 @@ static bool mad_hid_save(uint8_t channel) {
         case mad_ch_wheelchords:
             mad_config.wc_enabled = wheel_chords_get_enabled() ? 1 : 0;
             mad_config.wc_step    = wheel_chords_get_step();
+            mad_config.wc_hold_ms = wheel_chords_get_hold_ms();
             memcpy(mad_config.wc_table, wheel_chords_table(), sizeof(mad_config.wc_table));
             break;
         case mad_ch_os:
