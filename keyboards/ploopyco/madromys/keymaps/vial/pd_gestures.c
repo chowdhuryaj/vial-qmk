@@ -135,10 +135,22 @@ report_mouse_t pd_gestures_apply(report_mouse_t mouse_report) {
     pdg_acc_x += dx;
     pdg_acc_y += dy;
 
-    // Fire one key per ratchet step of travel, then reset the accumulator.
-    if (pdg_reached(pdg_acc_x, pdg_acc_y, pdg_ratchet_step)) {
+    // Fire one key per ratchet step of travel. A fast pass can cover several
+    // steps in a single sensor report — fire for each of them and keep the
+    // remainder, instead of the old fire-once-and-reset which discarded the
+    // surplus and made fast rolls feel like the output lagged the ball.
+    // Safety cap bounds the burst if a huge delta ever arrives.
+    uint8_t burst = 8;
+    while (pdg_reached(pdg_acc_x, pdg_acc_y, pdg_ratchet_step) && burst--) {
         pdg_fire(pdg_direction(pdg_acc_x, pdg_acc_y), pdg_acc_x, pdg_acc_y);
-        pdg_reset_accum();
+        float dist = sqrtf((float)pdg_acc_x * (float)pdg_acc_x + (float)pdg_acc_y * (float)pdg_acc_y);
+        if (dist <= (float)pdg_ratchet_step) {
+            pdg_reset_accum();
+            break;
+        }
+        float keep = (dist - (float)pdg_ratchet_step) / dist;
+        pdg_acc_x  = (int32_t)((float)pdg_acc_x * keep);
+        pdg_acc_y  = (int32_t)((float)pdg_acc_y * keep);
     }
 
     return mouse_report;

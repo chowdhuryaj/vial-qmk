@@ -556,22 +556,28 @@ static void mad_config_apply(void) {
 /* ---------------------------------------------------------------------------
  * Pointing device pipeline
  *
- * smoothing -> wiggle -> gestures -> drag scroll -> acceleration
+ * wheel chords -> gestures -> smoothing -> wiggle -> drag scroll -> accel
  *
- * Wiggle must see raw x/y, so it runs before gestures (which zero x/y while a
- * gesture is open) and drag scroll (which divides x/y into wheel output).
- * While a gesture is open it swallows movement (zeroes x/y); while drag scroll
- * is active it converts movement into wheel events and zeroes X/Y (so
- * acceleration, which skips zero reports, leaves scrolling untouched).
+ * Wheel chords and gestures count RAW sensor travel — they run before
+ * smoothing (2026-07-04 fix; smoothing used to run first, and its EMA smears
+ * a flick's motion across later frames, so ratchet fires kept arriving AFTER
+ * the ball stopped — gesture/chord output felt batched instead of live).
+ * Smoothing stays ahead of wiggle: shake detection was hardware-tuned
+ * against smoothed input, so it keeps seeing it. Side effect (fine): a shake
+ * can no longer toggle drag scroll while a chord/gesture is swallowing
+ * motion. While a gesture is open it swallows movement (zeroes x/y); while
+ * drag scroll is active it converts movement into wheel events and zeroes
+ * X/Y (so acceleration, which skips zero reports, leaves scrolling
+ * untouched).
  * ------------------------------------------------------------------------- */
 report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
     pipeline_diag_tick(); // freeze diagnostic: gap watermark (channel 0x1F)
-    mouse_report = pointing_device_smoothing_apply(mouse_report);
-    mouse_report = wiggle_ball_apply(mouse_report);
     // Wheel chords before gestures: a held button is a more deliberate
     // intent than a latched gesture set, so it wins the motion.
     mouse_report = wheel_chords_apply(mouse_report);
     mouse_report = pd_gestures_apply(mouse_report);
+    mouse_report = pointing_device_smoothing_apply(mouse_report);
+    mouse_report = wiggle_ball_apply(mouse_report);
     // Autoscroll before drag scroll: jog mode swallows raw ball motion the
     // same way drag scroll does; stepped mode only adds timed wheel ticks.
     mouse_report = autoscroll_apply(mouse_report);
