@@ -11,7 +11,7 @@
         {
             "name": "DPI Cycle",
             "title": "Cycle through the DPI options",
-            "shortName": "DPI\u27f3"
+            "shortName": "DPI⟳"
         },
         {
             "name": "DPI Up",
@@ -130,28 +130,53 @@
         },
         {
             "name": "OS Cut",
-            "title": "Cut \u2014 Cmd+X in mac mode, Ctrl+X in pc mode; mode follows USB OS detection unless pinned in Flask",
+            "title": "Cut — Cmd+X in mac mode, Ctrl+X in pc mode; mode follows USB OS detection unless pinned in Flask",
             "shortName": "OSCut"
         },
         {
             "name": "OS Copy",
-            "title": "Copy \u2014 Cmd+C / Ctrl+C, OS-aware",
+            "title": "Copy — Cmd+C / Ctrl+C, OS-aware",
             "shortName": "OSCpy"
         },
         {
             "name": "OS Paste",
-            "title": "Paste \u2014 Cmd+V / Ctrl+V, OS-aware",
+            "title": "Paste — Cmd+V / Ctrl+V, OS-aware",
             "shortName": "OSPst"
         },
         {
             "name": "OS Undo",
-            "title": "Undo \u2014 Cmd+Z / Ctrl+Z, OS-aware",
+            "title": "Undo — Cmd+Z / Ctrl+Z, OS-aware",
             "shortName": "OSUnd"
         },
         {
             "name": "OS Redo",
-            "title": "Redo \u2014 Shift+Cmd+Z in mac mode, Ctrl+Y in pc mode",
+            "title": "Redo — Shift+Cmd+Z in mac mode, Ctrl+Y in pc mode",
             "shortName": "OSRed"
+        },
+        {
+            "name": "OS App Switch",
+            "shortName": "OSApp",
+            "title": "App switcher: ⌘Tab in mac mode, Alt-Tab in pc mode (tap = last app)"
+        },
+        {
+            "name": "OS Select All",
+            "shortName": "OSAll",
+            "title": "Select all: ⌘A in mac mode, ^A in pc mode"
+        },
+        {
+            "name": "OS New Tab",
+            "shortName": "OSTab",
+            "title": "New tab: ⌘T in mac mode, ^T in pc mode"
+        },
+        {
+            "name": "OS Close",
+            "shortName": "OSCls",
+            "title": "Close window/tab: ⌘W in mac mode, ^W in pc mode"
+        },
+        {
+            "name": "Num Word",
+            "shortName": "NumWd",
+            "title": "Number layer stays on while typing digits; drops on the first other key or after the idle timeout (Typing tab)"
         }
     ],
     "layouts": {

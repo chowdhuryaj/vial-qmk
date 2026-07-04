@@ -26,9 +26,9 @@ SRC += $(QUANTUM_DIR)/pointing_device/pointing_device_auto_mouse.c
 # Ported drashna pointing-device modules
 SRC += shared/pd_accel.c
 SRC += shared/pointing_device_smoothing.c
-SRC += pd_gestures.c
+SRC += shared/pd_gestures.c
 SRC += drag_scroll.c
-SRC += wiggle_ball.c
+SRC += shared/wiggle_ball.c
 
 # Ported getreuer typing modules
 SRC += shared/custom_shift_keys.c
@@ -49,3 +49,6 @@ SRC += shared/os_shortcuts.c
 
 # Freeze diagnostic (2026-07-03): pointing-pipeline gap watermark, HID 0x1F.
 SRC += shared/pipeline_diag.c
+
+# Num word (v10 parity with the Svalboard): caps-word-for-numbers layer hold.
+SRC += shared/num_word.c

@@ -62,8 +62,11 @@
 // v9 = appended wheel-chords hold delay (+2 bytes). SIZE unchanged.
 // v10 = appended per-combo layer masks (+128 bytes: u16 x 64 combos, bit N =
 //       combo may fire while layer N is highest). SIZE 512 → 768.
+// v11 = appended raw DPI CPI (u16, 0 = legacy table), wiggle action/target
+//       set/source (3 bytes), auto-mouse target layer (1), num word timeout
+//       + layer (3). SIZE unchanged (768 has room).
 #define EECONFIG_USER_DATA_SIZE 768
-#define EECONFIG_USER_DATA_VERSION 10
+#define EECONFIG_USER_DATA_VERSION 11
 
 // Per-combo layer gating (ZMK-style "layers = [...]"): compiles the
 // combo_should_trigger() hook into quantum/process_combo.c; the
@@ -90,6 +93,20 @@
 #define MAD_AUTOMOUSE_TIMEOUT_MAX 5000
 #define MAD_AUTOMOUSE_THRESHOLD_DEFAULT 10 // accumulated counts to trigger
 #define MAD_AUTOMOUSE_THRESHOLD_MAX 60
+#define MAD_AUTOMOUSE_LAYER_DEFAULT 1      // _MOUSE (runtime-selectable, v10)
+
+// Raw DPI (v10): Flask sets CPI directly in this range; 0 = legacy 5-entry
+// table. The PMW3360 quantizes to its native 100-count steps internally.
+#define MADROMYS_DPI_CPI_MIN 200
+#define MADROMYS_DPI_CPI_MAX 4000
+#define MADROMYS_DPI_CPI_STEP 50
+
+// Num word (v10, shared module): number layer with caps-word-style hold +
+// idle timeout. Layer default = _MOUSE+? — spare layer 4 (blank by default;
+// bind digits there in Flask, or point num word at any layer 0-7).
+#define NUM_WORD_LAYER_DEFAULT 4
+#define NUM_WORD_IDLE_TIMEOUT_DEFAULT 5000
+#define NUM_WORD_IDLE_TIMEOUT_MAX 30000
 #define AUTO_MOUSE_TIME MAD_AUTOMOUSE_TIMEOUT_DEFAULT
 
 /* ---------------------------------------------------------------------------

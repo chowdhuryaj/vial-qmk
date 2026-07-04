@@ -24,9 +24,9 @@
 
 #include "shared/pd_accel.h"
 #include "shared/pointing_device_smoothing.h"
-#include "pd_gestures.h"
+#include "shared/pd_gestures.h"
 #include "drag_scroll.h"
-#include "wiggle_ball.h"
+#include "shared/wiggle_ball.h"
 #include "shared/custom_shift_keys.h"
 #include "shared/select_word.h"
 #include "shared/sentence_case.h"
@@ -35,6 +35,7 @@
 #include "shared/os_shortcuts.h"
 #include "os_detection.h"
 #include "shared/pipeline_diag.h"
+#include "shared/num_word.h"
 
 /* ---------------------------------------------------------------------------
  * Layers
@@ -91,6 +92,12 @@ enum madromys_keycodes {
     OS_PSTE,               // 26 paste (⌘V / ^V)
     OS_UNDO,               // 27 undo (⌘Z / ^Z)
     OS_REDO,               // 28 redo (⇧⌘Z / ^Y)
+    // v10 additions (2026-07-04)
+    OS_APPSW,              // 29 app switch (⌘Tab / AltTab, tap = last app)
+    OS_SELALL,             // 30 select all (⌘A / ^A)
+    OS_NTAB,               // 31 new tab (⌘T / ^T)
+    OS_CLOSE,              // 32 close window/tab (⌘W / ^W)
+    NUMWORD,               // 33 num word: layer stays on while typing numbers
 };
 
 /* ---------------------------------------------------------------------------
@@ -210,6 +217,22 @@ static void gesture_toggle_set(uint8_t set) {
         return;
     }
     pd_gestures_toggle(gesture_sets[set]);
+}
+
+// Shared wiggle_ball consumer hook (v10): a detected shake performs the
+// configured action. Default keeps the historical behavior — cancel an open
+// gesture, else toggle drag scroll; gesture-set mode latches/unlatches the
+// configured set (empty-set guard included via gesture_toggle_set).
+void wiggle_ball_triggered(void) {
+    if (get_wiggle_ball_action() == WIGGLE_ACTION_GESTURE_SET) {
+        gesture_toggle_set(get_wiggle_ball_gesture_set());
+        return;
+    }
+    if (pd_gestures_is_active()) {
+        pd_gestures_cancel();
+        return;
+    }
+    set_drag_scroll_scrolling(!get_drag_scroll_scrolling());
 }
 
 /* ---------------------------------------------------------------------------
@@ -334,6 +357,15 @@ typedef struct __attribute__((packed)) {
     // Per-combo layer masks (v10): bit N set = combo may fire while layer N
     // is the highest active layer. 0xFFFF (default) = all layers.
     uint16_t combo_layer_masks[VIAL_COMBO_ENTRIES];
+    // v11 (2026-07-04): raw DPI (0 = use the legacy table index), wiggle
+    // action/target/source, auto-mouse target layer, num word tunables.
+    uint16_t dpi_cpi;
+    uint8_t  wb_action;
+    uint8_t  wb_gesture_set;
+    uint8_t  wb_source;
+    uint8_t  am_layer;
+    uint16_t nw_timeout;
+    uint8_t  nw_layer;
 } mad_config_t;
 _Static_assert(sizeof(mad_config_t) <= EECONFIG_USER_DATA_SIZE, "mad_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -360,8 +392,22 @@ static void mad_config_write(void) {
 static const uint16_t dpi_options[] = MADROMYS_DPI_OPTIONS;
 #define DPI_COUNT ARRAY_SIZE(dpi_options)
 
+// Raw CPI (v10): when mad_config.dpi_cpi is nonzero it drives the sensor
+// directly (clamped 200-4000; the PMW3360 rounds to its native 100 steps);
+// zero keeps the legacy 5-entry table index. The DPI keycodes step whichever
+// mode is active.
+static uint16_t dpi_clamp_cpi(uint16_t cpi) {
+    if (cpi < MADROMYS_DPI_CPI_MIN) return MADROMYS_DPI_CPI_MIN;
+    if (cpi > MADROMYS_DPI_CPI_MAX) return MADROMYS_DPI_CPI_MAX;
+    return cpi;
+}
+
 static void dpi_apply(void) {
-    pointing_device_set_cpi(dpi_options[mad_config.dpi_index]);
+    if (mad_config.dpi_cpi != 0) {
+        pointing_device_set_cpi(dpi_clamp_cpi(mad_config.dpi_cpi));
+    } else {
+        pointing_device_set_cpi(dpi_options[mad_config.dpi_index]);
+    }
 }
 
 // DPI keycodes persist immediately (pre-datablock behavior, kept): stepping
@@ -372,19 +418,32 @@ static void dpi_save_and_apply(void) {
 }
 
 static void dpi_cycle(void) {
-    mad_config.dpi_index = (mad_config.dpi_index + 1) % DPI_COUNT;
+    if (mad_config.dpi_cpi != 0) { // raw mode: cycle wraps through the range
+        uint16_t next = mad_config.dpi_cpi + MADROMYS_DPI_CPI_STEP;
+        mad_config.dpi_cpi = next > MADROMYS_DPI_CPI_MAX ? MADROMYS_DPI_CPI_MIN : next;
+    } else {
+        mad_config.dpi_index = (mad_config.dpi_index + 1) % DPI_COUNT;
+    }
     dpi_save_and_apply();
 }
 
 static void dpi_up(void) {
-    if (mad_config.dpi_index < DPI_COUNT - 1) {
+    if (mad_config.dpi_cpi != 0) {
+        mad_config.dpi_cpi = dpi_clamp_cpi(mad_config.dpi_cpi + MADROMYS_DPI_CPI_STEP);
+        dpi_save_and_apply();
+    } else if (mad_config.dpi_index < DPI_COUNT - 1) {
         mad_config.dpi_index++;
         dpi_save_and_apply();
     }
 }
 
 static void dpi_down(void) {
-    if (mad_config.dpi_index > 0) {
+    if (mad_config.dpi_cpi != 0) {
+        mad_config.dpi_cpi = dpi_clamp_cpi(mad_config.dpi_cpi - MADROMYS_DPI_CPI_STEP < MADROMYS_DPI_CPI_MIN
+                                               ? MADROMYS_DPI_CPI_MIN
+                                               : mad_config.dpi_cpi - MADROMYS_DPI_CPI_STEP);
+        dpi_save_and_apply();
+    } else if (mad_config.dpi_index > 0) {
         mad_config.dpi_index--;
         dpi_save_and_apply();
     }
@@ -442,8 +501,17 @@ bool auto_mouse_activation(report_mouse_t mouse_report) {
     return trip;
 }
 
+static uint8_t mad_am_layer = MAD_AUTOMOUSE_LAYER_DEFAULT;
+
+static void mad_automouse_set_layer(uint8_t layer) {
+    if (layer >= 8) layer = MAD_AUTOMOUSE_LAYER_DEFAULT; // 8 dynamic layers
+    mad_am_layer = layer;
+    set_auto_mouse_layer(mad_am_layer);
+}
+
 static void mad_automouse_apply(void) {
-    set_auto_mouse_layer(_MOUSE);
+    if (mad_config.am_layer >= 8) mad_config.am_layer = MAD_AUTOMOUSE_LAYER_DEFAULT;
+    mad_automouse_set_layer(mad_config.am_layer);
     mad_am_threshold = mad_config.am_threshold;
     mad_automouse_set_timeout(mad_config.am_timeout_ms);
     mad_automouse_set_enabled(mad_config.am_enabled != 0);
@@ -487,6 +555,13 @@ static void mad_config_set_defaults(void) {
         .os_follow            = OS_SHORTCUTS_FOLLOW_DEFAULT ? 1 : 0,
         .os_mac               = OS_SHORTCUTS_MAC_DEFAULT ? 1 : 0,
         .wc_hold_ms           = WHEEL_CHORDS_HOLD_MS_DEFAULT,
+        .dpi_cpi              = 0, // 0 = legacy table index drives the sensor
+        .wb_action            = WIGGLE_BALL_ACTION_DEFAULT,
+        .wb_gesture_set       = WIGGLE_BALL_GESTURE_SET_DEFAULT,
+        .wb_source            = WIGGLE_BALL_SOURCE_DEFAULT,
+        .am_layer             = MAD_AUTOMOUSE_LAYER_DEFAULT,
+        .nw_timeout           = NUM_WORD_IDLE_TIMEOUT_DEFAULT,
+        .nw_layer             = NUM_WORD_LAYER_DEFAULT,
     };
     // The struct literal above zero-fills gesture_sets (KC_NO everywhere) and
     // likewise the custom-shift-key table and leader sequences (all empty);
@@ -551,6 +626,11 @@ static void mad_config_apply(void) {
     os_shortcuts_set_mac(mad_config.os_mac != 0);
     os_shortcuts_set_follow(mad_config.os_follow != 0);
     memcpy(combo_layer_masks, mad_config.combo_layer_masks, sizeof(combo_layer_masks));
+    set_wiggle_ball_action(mad_config.wb_action);
+    set_wiggle_ball_gesture_set(mad_config.wb_gesture_set);
+    set_wiggle_ball_source(mad_config.wb_source);
+    num_word_set_timeout(mad_config.nw_timeout);
+    num_word_set_layer(mad_config.nw_layer);
 }
 
 /* ---------------------------------------------------------------------------
@@ -572,12 +652,15 @@ static void mad_config_apply(void) {
  * ------------------------------------------------------------------------- */
 report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
     pipeline_diag_tick(); // freeze diagnostic: gap watermark (channel 0x1F)
+    // Wiggle observes RAW deltas before any capture module zeroes them, so a
+    // shake works both to engage its action and to escape one (v10; the
+    // module is a pure detector now — wiggle_ball_triggered() below acts).
+    wiggle_ball_observe(mouse_report.x, mouse_report.y);
     // Wheel chords before gestures: a held button is a more deliberate
     // intent than a latched gesture set, so it wins the motion.
     mouse_report = wheel_chords_apply(mouse_report);
     mouse_report = pd_gestures_apply(mouse_report);
     mouse_report = pointing_device_smoothing_apply(mouse_report);
-    mouse_report = wiggle_ball_apply(mouse_report);
     // Autoscroll before drag scroll: jog mode swallows raw ball motion the
     // same way drag scroll does; stepped mode only adds timed wheel ticks.
     mouse_report = autoscroll_apply(mouse_report);
@@ -648,6 +731,11 @@ static void print_status(void) {
  * Keycode handling
  * ------------------------------------------------------------------------- */
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    // Num word watches every key event except its own toggle to decide when
+    // the number layer should drop (shared/num_word.h wiring contract).
+    if (keycode != NUMWORD) {
+        num_word_on_record(keycode, record);
+    }
     // Wheel chords track physical BTN1..BTN8 state, including the tap half
     // of layer-taps (LT(x, BTNn) resolves here with tap.count set). Tracked
     // before anything can consume the event so held state can't go stale.
@@ -822,6 +910,21 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case OS_REDO:
             if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_REDO);
             return false;
+        case OS_APPSW:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_APP_SWITCH);
+            return false;
+        case OS_SELALL:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_SELECT_ALL);
+            return false;
+        case OS_NTAB:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_NEW_TAB);
+            return false;
+        case OS_CLOSE:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_CLOSE_WIN);
+            return false;
+        case NUMWORD:
+            if (record->event.pressed) num_word_toggle();
+            return false;
     }
     return true;
 }
@@ -842,6 +945,7 @@ bool process_detected_host_os_kb(os_variant_t detected_os) {
 void housekeeping_task_user(void) {
     select_word_task();
     sentence_case_task();
+    num_word_task();
 }
 
 /* ---------------------------------------------------------------------------
@@ -933,10 +1037,10 @@ void keyboard_post_init_user(void) {
 //      + freeze-diagnostic channel (0x1F: pointing-gap watermark, uptime).
 //      (0x1E is num word, Svalboard-only — unhandled here.)
 // v8 = wheel-chords hold delay (0x1C/0x03: ms held before capture engages).
-#define MAD_HID_PROTOCOL_VERSION 9
+#define MAD_HID_PROTOCOL_VERSION 10
 
 enum mad_hid_channel {
-    mad_ch_meta       = 0x00, // 0x01: protocol version (read-only)
+    mad_ch_meta       = 0x00, // 0x01 protocol version RO; 0x02 active layer RO (v10)
     mad_ch_accel      = 0x10,
     mad_ch_gestures   = 0x11,
     mad_ch_wiggle     = 0x12,
@@ -952,11 +1056,13 @@ enum mad_hid_channel {
     mad_ch_wheelchords = 0x1C, // button-held ball gestures (v6)
     mad_ch_os         = 0x1D, // OS-aware shortcuts (v7)
     mad_ch_diag       = 0x1F, // freeze diagnostic (v7; nothing persists)
+    mad_ch_numword    = 0x1E, // num word (v10 on the Adept; Sval had it since v7)
     mad_ch_combolayers = 0x20, // per-combo layer masks (v9)
 };
 
 enum mad_hid_meta_value {
     mad_meta_protocol_version = 0x01,
+    mad_meta_active_layer     = 0x02, // v10 RO: highest active layer (HUD feed)
 };
 
 enum mad_hid_accel_value {
@@ -1015,6 +1121,9 @@ enum mad_hid_wiggle_value {
     mad_wiggle_cooldown  = 0x02,
     mad_wiggle_threshold = 0x03,
     mad_wiggle_enabled   = 0x04, // v3: shake-detection kill switch
+    mad_wiggle_action    = 0x05, // v10: 0 = drag-scroll toggle, 1 = gesture set
+    mad_wiggle_set       = 0x06, // v10: gesture set the shake targets (0-7)
+    mad_wiggle_source    = 0x07, // v10: ball source on multi-ball devices
 };
 
 enum mad_hid_smoothing_value {
@@ -1025,6 +1134,7 @@ enum mad_hid_smoothing_value {
 
 enum mad_hid_dpi_value {
     mad_dpi_index = 0x01,
+    mad_dpi_cpi   = 0x02, // v10: raw CPI [200,4000]; 0 = table index drives
 };
 
 enum mad_hid_dragscroll_value {
@@ -1078,6 +1188,13 @@ enum mad_hid_automouse_value {
     mad_am_enabled_id  = 0x01,
     mad_am_timeout_id  = 0x02, // ms, clamped [MAD_AUTOMOUSE_TIMEOUT_MIN, MAX]
     mad_am_threshold_id = 0x03, // accumulated counts, clamped [0, MAX]
+    mad_am_layer_id    = 0x04, // v10: target layer (0-7)
+};
+
+enum mad_hid_numword_value {
+    mad_nw_timeout_id = 0x01, // idle ms before the layer drops (0 = never)
+    mad_nw_layer_id   = 0x02, // target layer
+    mad_nw_state_id   = 0x03, // live: GET = active?, SET any = force off
 };
 
 enum mad_hid_wheelchords_value {
@@ -1147,6 +1264,10 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 mad_hid_write_u16(payload, MAD_HID_PROTOCOL_VERSION);
                 return true;
             }
+            if (value_id == mad_meta_active_layer) {
+                mad_hid_write_u16(payload, get_highest_layer(layer_state | default_layer_state));
+                return true;
+            }
             return false;
 
         case mad_ch_accel:
@@ -1182,6 +1303,9 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 case mad_wiggle_cooldown: mad_hid_write_u16(payload, get_wiggle_ball_timeout()); return true;
                 case mad_wiggle_threshold: mad_hid_write_u16(payload, get_wiggle_ball_movement_threshold()); return true;
                 case mad_wiggle_enabled: mad_hid_write_u16(payload, get_wiggle_ball_enabled() ? 1 : 0); return true;
+                case mad_wiggle_action: mad_hid_write_u16(payload, get_wiggle_ball_action()); return true;
+                case mad_wiggle_set: mad_hid_write_u16(payload, get_wiggle_ball_gesture_set()); return true;
+                case mad_wiggle_source: mad_hid_write_u16(payload, get_wiggle_ball_source()); return true;
                 default: return false;
             }
 
@@ -1196,6 +1320,10 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
         case mad_ch_dpi:
             if (value_id == mad_dpi_index) {
                 mad_hid_write_u16(payload, mad_config.dpi_index);
+                return true;
+            }
+            if (value_id == mad_dpi_cpi) {
+                mad_hid_write_u16(payload, mad_config.dpi_cpi);
                 return true;
             }
             return false;
@@ -1268,6 +1396,15 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 case mad_am_enabled_id: mad_hid_write_u16(payload, mad_am_enabled ? 1 : 0); return true;
                 case mad_am_timeout_id: mad_hid_write_u16(payload, mad_am_timeout_ms); return true;
                 case mad_am_threshold_id: mad_hid_write_u16(payload, mad_am_threshold); return true;
+                case mad_am_layer_id: mad_hid_write_u16(payload, mad_am_layer); return true;
+                default: return false;
+            }
+
+        case mad_ch_numword:
+            switch (value_id) {
+                case mad_nw_timeout_id: mad_hid_write_u16(payload, num_word_get_timeout()); return true;
+                case mad_nw_layer_id: mad_hid_write_u16(payload, num_word_get_layer()); return true;
+                case mad_nw_state_id: mad_hid_write_u16(payload, num_word_is_active() ? 1 : 0); return true;
                 default: return false;
             }
 
@@ -1389,6 +1526,24 @@ static bool mad_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                     set_wiggle_ball_enabled(mad_hid_read_u16(payload) != 0);
                     mad_hid_write_u16(payload, get_wiggle_ball_enabled() ? 1 : 0);
                     return true;
+                case mad_wiggle_action:
+                    set_wiggle_ball_action((uint8_t)(mad_hid_read_u16(payload) > 1 ? 0 : mad_hid_read_u16(payload)));
+                    mad_hid_write_u16(payload, get_wiggle_ball_action());
+                    return true;
+                case mad_wiggle_set: {
+                    uint16_t requested = mad_hid_read_u16(payload);
+                    if (requested > 7) requested = 7; // clamp pre-narrowing
+                    set_wiggle_ball_gesture_set((uint8_t)requested);
+                    mad_hid_write_u16(payload, get_wiggle_ball_gesture_set());
+                    return true;
+                }
+                case mad_wiggle_source: {
+                    uint16_t requested = mad_hid_read_u16(payload);
+                    if (requested > 2) requested = 0;
+                    set_wiggle_ball_source((uint8_t)requested);
+                    mad_hid_write_u16(payload, get_wiggle_ball_source());
+                    return true;
+                }
                 default: return false;
             }
 
@@ -1407,8 +1562,16 @@ static bool mad_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 uint16_t requested = mad_hid_read_u16(payload);
                 if (requested >= DPI_COUNT) requested = DPI_COUNT - 1;
                 mad_config.dpi_index = (uint8_t)requested;
+                mad_config.dpi_cpi   = 0; // an index write re-arms table mode
                 dpi_save_and_apply();
                 mad_hid_write_u16(payload, mad_config.dpi_index);
+                return true;
+            }
+            if (value_id == mad_dpi_cpi) {
+                uint16_t requested = mad_hid_read_u16(payload);
+                mad_config.dpi_cpi = requested == 0 ? 0 : dpi_clamp_cpi(requested);
+                dpi_save_and_apply();
+                mad_hid_write_u16(payload, mad_config.dpi_cpi);
                 return true;
             }
             return false;
@@ -1539,6 +1702,33 @@ static bool mad_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                     mad_hid_write_u16(payload, mad_am_threshold);
                     return true;
                 }
+                case mad_am_layer_id: {
+                    uint16_t requested = mad_hid_read_u16(payload);
+                    if (requested > 7) requested = MAD_AUTOMOUSE_LAYER_DEFAULT;
+                    mad_automouse_set_layer((uint8_t)requested);
+                    mad_hid_write_u16(payload, mad_am_layer);
+                    return true;
+                }
+                default: return false;
+            }
+
+        case mad_ch_numword:
+            switch (value_id) {
+                case mad_nw_timeout_id:
+                    num_word_set_timeout(mad_hid_read_u16(payload));
+                    mad_hid_write_u16(payload, num_word_get_timeout());
+                    return true;
+                case mad_nw_layer_id: {
+                    uint16_t requested = mad_hid_read_u16(payload);
+                    if (requested > 7) requested = NUM_WORD_LAYER_DEFAULT;
+                    num_word_set_layer((uint8_t)requested);
+                    mad_hid_write_u16(payload, num_word_get_layer());
+                    return true;
+                }
+                case mad_nw_state_id:
+                    num_word_off(); // any SET forces off (rescue), like Sval
+                    mad_hid_write_u16(payload, 0);
+                    return true;
                 default: return false;
             }
 
@@ -1630,6 +1820,9 @@ static bool mad_hid_save(uint8_t channel) {
             mad_config.wiggle_cooldown  = get_wiggle_ball_timeout();
             mad_config.wiggle_threshold = get_wiggle_ball_movement_threshold();
             mad_config.wiggle_enabled   = get_wiggle_ball_enabled() ? 1 : 0;
+            mad_config.wb_action        = get_wiggle_ball_action();
+            mad_config.wb_gesture_set   = get_wiggle_ball_gesture_set();
+            mad_config.wb_source        = get_wiggle_ball_source();
             break;
         case mad_ch_smoothing:
             mad_config.smooth_enabled     = pointing_device_smoothing_get_enabled() ? 1 : 0;
@@ -1669,6 +1862,11 @@ static bool mad_hid_save(uint8_t channel) {
             mad_config.am_enabled    = mad_am_enabled ? 1 : 0;
             mad_config.am_timeout_ms = mad_am_timeout_ms;
             mad_config.am_threshold  = mad_am_threshold;
+            mad_config.am_layer      = mad_am_layer;
+            break;
+        case mad_ch_numword:
+            mad_config.nw_timeout = num_word_get_timeout();
+            mad_config.nw_layer   = num_word_get_layer();
             break;
         case mad_ch_wheelchords:
             mad_config.wc_enabled = wheel_chords_get_enabled() ? 1 : 0;

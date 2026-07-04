@@ -64,11 +64,11 @@ print()
 if len(enum_names) != len(vial_names):
     print(f"  FAIL  {len(enum_names)} enum entries vs {len(vial_names)} vial.json entries (must match)")
     ok_so_far = False
-elif len(enum_names) > 32:
-    print(f"  FAIL  {len(enum_names)} custom keycodes exceeds the 32-slot ceiling (QK_KB_0..QK_KB_31)")
+elif len(enum_names) > 64:
+    print(f"  FAIL  {len(enum_names)} custom keycodes exceeds the 64-slot keyboard range (0x7E00-0x7E3F)")
     ok_so_far = False
 else:
-    print(f"  OK    {len(enum_names)}/32 custom keycode slots used, counts match")
+    print(f"  OK    {len(enum_names)}/64 custom keycode slots used, counts match")
 
 unhandled = [n for n in enum_names if not re.search(r"\bcase\s+" + re.escape(n) + r"\s*:", src)]
 if unhandled:
