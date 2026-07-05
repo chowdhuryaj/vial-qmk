@@ -72,7 +72,9 @@ keycodes) and then runs the real build.
    in the middle — that silently reassigns every keycode after it.
 3. **Removing**: either remove from the end, or renumber everything below
    the removed entry in both files identically.
-4. Ceiling: 32 slots (`QK_KB_0..QK_KB_31`). `check.sh` reports current usage.
+4. Ceiling: 64 slots (`QK_KB_0..QK_KB_63`, 0x7E00-0x7E3F — corrected from 32
+   on 2026-07-04; the Svalboard had shipped past 32 since its v7). `check.sh`
+   reports current usage (34 in use as of v1.1.0).
 
 `check.sh` verifies the two lists are the same length and that every enum
 entry has a `process_record_user` case. It cannot verify *semantic* order
@@ -221,7 +223,8 @@ NOT call `raw_hid_send()` — via.c echoes the buffer itself.
 
 **Channels** (0x10+ dodges VIA's reserved 0–5; full value table lives in
 `keymap.c`'s `mad_hid_*` enums and mirrors `Sources/AdeptCore/AdeptProtocol.swift`):
-`0x00` meta (protocol version, currently **7**) · `0x10` accel · `0x11`
+`0x00` meta (protocol version, currently **10**; `0x02` active layer RO,
+v10) · `0x10` accel · `0x11`
 gestures (`0x01` ratchet step; `0x02` active set — GET index/0xFF, SET 0xFF
 cancels or index toggles through the GR#_TOG guard path; **slots**: cardinals
 `0x10 + set*4 + c` (c 0=E 1=S 2=W 3=N → internal dir c*2), diagonals
@@ -247,8 +250,13 @@ detection, `0x02` mac/pc mode — SET also mirrors into select word, `0x03`
 detected os_variant_t RO; keycodes OS_CUT/OS_COPY/OS_PSTE/OS_UNDO/OS_REDO,
 os_shortcuts.c + OS_DETECTION_ENABLE) + `0x1F` freeze diagnostic (`0x01`
 pointing-gap watermark ms — GET reads, SET resets; `0x02` uptime seconds RO;
-pipeline_diag.c, nothing persists). `0x1E` num word is **Svalboard-only**
-(unhandled here). Protocol currently **7**; EEPROM datablock VERSION **8**.
+pipeline_diag.c, nothing persists) · **v8-v10 (2026-07-04, v1.1.0):** `0x1E`
+num word (now on the Adept too — default target layer 4), raw DPI 200-4000
+step 50 on `0x14` (CPI value id; 0 = legacy table/index mode, writing an
+index re-arms it), auto-mouse target layer on `0x1B`, wiggle
+action/target/source knobs on `0x12`, 4 more OS shortcuts
+(OS_APPSW/OS_SELALL/OS_NEWTAB/OS_CLOSE) + NUMWORD = keycodes 29-33.
+Protocol currently **10**; EEPROM datablock VERSION **11**.
 Gestures are **8-direction** since v3 (`PD_GESTURES_NUM_DIRECTIONS 8`,
 internal order E SE S SW W NW N NE); an empty diagonal slot falls back to
 the nearest cardinal by dominant axis, so 4-way sets keep their old feel.
@@ -294,7 +302,7 @@ routes 0x07–0x09 to the tuning handler. Don't run Vial GUI and the app togethe
 ## Shared module submodule (added 2026-07-04)
 
 `keymaps/vial/shared/` is a **git submodule**, not a plain subdirectory. It
-points at the standalone repo `~/qmk-flask-modules`, which holds the 9 ported
+points at the standalone repo `~/qmk-flask-modules`, which holds the 12 ported
 module `.c`/`.h` pairs that are byte-identical across every Flask-speaking
 firmware — currently this repo (Adept) and `~/svalboard-vial-qmk`
 (Svalboard, `keyboards/svalboard/keymaps/flask/shared/` — same submodule,
@@ -302,13 +310,16 @@ same commit, added the same way). Goal: any future QMK-Vial device that wants
 the Flask feature set clones the same submodule instead of re-porting or
 copy-pasting.
 
-**Current shared set (9 pairs, 18 files):** `os_shortcuts`, `pipeline_diag`,
-`pd_accel`, `pointing_device_smoothing`, `select_word`, `sentence_case`,
-`custom_shift_keys`, `wheel_chords`, `autoscroll`. **Not shared** (Adept-only:
-`pd_gestures.c/.h`, `drag_scroll.c/.h`, `wiggle_ball.c/.h`; Svalboard-only:
-`num_word.c/.h`, `support_flask.c`, `mad_hid.c`, `flask_tuning.h`) — these stay
+**Current shared set (12 pairs, 24 files — v1.1.0, 2026-07-04):**
+`os_shortcuts`, `pipeline_diag`, `pd_accel`, `pointing_device_smoothing`,
+`select_word`, `sentence_case`, `custom_shift_keys`, `wheel_chords`,
+`autoscroll`, **plus (moved in for Sval parity)** `pd_gestures`,
+`wiggle_ball` (rewritten as a pure observer: `wiggle_ball_observe()` +
+`wiggle_ball_triggered()`, fed raw deltas FIRST in the pipeline), `num_word`.
+**Not shared** (Adept-only: `drag_scroll.c/.h`; Svalboard-only:
+`support_flask.c`, `mad_hid.c`, `flask_tuning.h`) — these stay
 local to each keymap, either because only one device uses them or because
-they've diverged (drag_scroll/wiggle_ball have Adept-specific history, see
+they've diverged (drag_scroll has Adept-specific history, see
 "Drag-scroll history" below).
 
 **Mechanics, current state:** the submodule's `url` in `.gitmodules` is a bare

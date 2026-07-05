@@ -108,6 +108,11 @@ enum madromys_keycodes {
  *   = matrix ( [0,1], [0,2], [0,3], [0,4], [0,0], [0,5] )
  * ------------------------------------------------------------------------- */
 // clang-format off
+/* FLASK-BAKE-BEGIN — Flask's Build tab "Bake current keymap as default"
+ * replaces everything between these two markers with a raw-matrix dump of
+ * the device's live keymap (row-major [row][col] hex keycodes, one block per
+ * layer). Don't hand-edit a baked block; edit the layout in Flask/Vial and
+ * re-bake. The LAYOUT() form below survives only until the first bake. */
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     /* Base: drag-scroll toggle + mouse buttons. Three positions are simple
      * layer-tap mod-taps (tap = the mouse button, hold = a layer); the rest are
@@ -166,6 +171,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
     ),
 };
+/* FLASK-BAKE-END */
 // clang-format on
 
 /* ---------------------------------------------------------------------------
