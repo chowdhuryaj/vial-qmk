@@ -28,3 +28,6 @@
 [submodule "keyboards/ploopyco/madromys/keymaps/vial/shared"]
 	path = keyboards/ploopyco/madromys/keymaps/vial/shared
 	url = https://github.com/chowdhuryaj/qmk-flask-modules.git
+[submodule "keyboards/nlofin/nlkb16_02/keymaps/flask/shared"]
+	path = keyboards/nlofin/nlkb16_02/keymaps/flask/shared
+	url = https://github.com/chowdhuryaj/qmk-flask-modules.git

@@ -357,3 +357,69 @@ the only firmware-repo-side changes a shared-module edit needs.
 5. Move all `#define` configuration into `keymaps/vial/config.h`.
 6. Add custom keycodes to the enum **and** `vial.json`, same order, same length.
 7. Run `check.sh`.
+
+## NLOFIN NLKB16-02 — second Flask device in this repo (added 2026-07-06)
+
+`keyboards/nlofin/nlkb16_02/` — a rebadged DOIO KB16 rev2 macro pad (16 keys,
+3 encoders, 23-LED RGB, tiny OLED; STM32F103, Maple/stm32duino bootloader,
+app at 0x8002000). Board files reconstructed from mainline `doio/kb16/rev2` +
+values read off the live device; stock firmware backed up at
+`~/nlkb16-02-stock-firmware-2026-07-06.bin` (restore:
+`dfu-util -d 1eaf:0003 -a 2 -D <bin>`). Everything hardware-verified
+2026-07-06. Its own validator: `keyboards/nlofin/nlkb16_02/keymaps/flask/check.sh`
+— same contract as the Adept's, run it after every edit.
+
+**Keymap** (`keymaps/flask/`): Vial (8 layers, 32 tap dances/combos/key
+overrides) + VialRGB (stock protocol untouched) + Flask raw HID protocol
+(**v2**; EEPROM datablock v1) with channels: `0x00` meta · `0x16` custom shift
+keys · `0x17` select word · `0x18` sentence case · `0x19` leader · `0x1D` OS
+shortcuts · `0x1E` num word · `0x20` per-combo layer masks · `0x21` per-layer
+per-key RGB map (8 layers × 23 LEDs × HSV, `RGBMAP_TOG`) · `0x22` OLED
+(push lines `0x10`, release `0x11`, hold `0x01`, diagnostics `0x02-0x06`,
+**raw panel cmd inject `0x07` + full re-init `0x08`** — the display-debug
+probes, v2). Shares the `qmk-flask-modules` submodule (getreuer set only —
+no pointing device). 17 custom keycodes; THE keycode rule applies
+(enum ↔ `vial.json`).
+
+**Hard-won hardware facts — read before touching the display or RGB:**
+- **The glass is a 64×32 window into the SSD1306's 128×64 RAM** (SEG columns
+  32-95 × COM rows 0-31). Panel is a real SSD1306 128×64 electrically (init
+  table decoded from the stock dump at flash offset 0xD4EF), mounted portrait
+  → `OLED_ROTATION_90`, and of the 16×10 logical canvas only **lines 4-11 ×
+  columns 0-4** are visible (`NLK_DISPLAY_VISIBLE_*` in keymap config.h). A
+  whole session was lost to "frozen display" symptoms that were really
+  dynamic content rendering off-glass. Boundary-probe pushes over HID are
+  how to re-map this if the glass is ever questioned again.
+- **RGB boot holdoff is load-bearing** (`NLK_RGB_HOLDOFF_MS`, keymap.c): the
+  panel wedges (ACKs every I2C transfer, applies none — fail counters stay 0)
+  if the LED strip lights at full brightness during the USB power-up window.
+  Same brightness/animation is harmless seconds later (hardware-bisected:
+  boot-bright froze; off/dim/bright at steady-state all clean). LEDs are held
+  dark 3 s after boot and after USB wake, then restored from EEPROM with a
+  defensive `oled_display_request_reinit()`. Recovery from a wedge = HID
+  `0x22/0x08` re-init; it survives without a replug.
+- **ws2812 PWM backend is impossible on this board** — PA10 = TIM1_CH3, the
+  driver DMAs off TIM1_UP, and on the F103's fixed DMA map TIM1_UP shares
+  DMA1 ch5 with I2C2_RX, which the OLED holds from `i2cStart` on. The build
+  boots to a ChibiOS halt before USB. Bitbang stays (comment in board
+  config.h). Don't retry.
+- **The Maple bootloader mass-erases the EEPROM region on every flash** —
+  persisted settings reverting to defaults after a reflash is the bootloader,
+  not a firmware regression (same-session power cycles DO persist).
+- **Big knob (matrix 2,4) is not pushable** — vendor never wired the switch;
+  don't bind anything there.
+- Full-width (10-char) pushed lines must NOT be followed by
+  `oled_advance_page()` — the cursor has already wrapped and the call blanks
+  the next line, ping-ponging every block dirty (218 tx/s measured vs 2 idle).
+  `oled_display_push_line` stores lines space-padded; `render_pushed` only
+  advances on short lines. Don't "simplify" that back.
+- Host-side: python-hidapi goes stale across replug/reflash cycles — probe
+  with the `hidcli` Swift one-shot (scratchpad; rebuild:
+  `swiftc -O hidcli.swift -o hidcli`) or vial.rocks before believing the
+  firmware is dead.
+- EEPROM sizing is RAM-constrained (F103, 20 KB): 8 K backing / 4 K logical.
+  8 K logical left 560 bytes of heap; don't grow it back.
+
+**Still pending** (deferred, not forgotten): Flask macOS app support for this
+device (encoder editor, RGB painter, display push panel — mirror the Adept UI
+patterns) and exercising `.vil` save/load as the bootloader-erase mitigation.

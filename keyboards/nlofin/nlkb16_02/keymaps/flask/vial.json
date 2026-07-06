@@ -1,0 +1,152 @@
+{
+    "name": "NLKB16-02",
+    "vendorId": "0xD020",
+    "productId": "0x1603",
+    "lighting": "vialrgb",
+    "matrix": {
+        "rows": 4,
+        "cols": 5
+    },
+    "layouts": {
+        "keymap": [
+            [
+                "0,0",
+                "0,1",
+                "0,2",
+                "0,3",
+                {
+                    "x": 1
+                },
+                "0,0\n\n\n\n\n\n\n\n\ne",
+                "0,1\n\n\n\n\n\n\n\n\ne",
+                {
+                    "x": 1.5
+                },
+                "1,0\n\n\n\n\n\n\n\n\ne",
+                "1,1\n\n\n\n\n\n\n\n\ne"
+            ],
+            [
+                "1,0",
+                "1,1",
+                "1,2",
+                "1,3",
+                {
+                    "x": 1.5
+                },
+                "0,4",
+                {
+                    "x": 2.5
+                },
+                "1,4"
+            ],
+            [
+                "2,0",
+                "2,1",
+                "2,2",
+                "2,3"
+            ],
+            [
+                "3,0",
+                "3,1",
+                "3,2",
+                "3,3",
+                {
+                    "x": 2.75
+                },
+                "2,0\n\n\n\n\n\n\n\n\ne",
+                "2,1\n\n\n\n\n\n\n\n\ne",
+                {
+                    "x": 0.25
+                },
+                "2,4"
+            ]
+        ]
+    },
+    "customKeycodes": [
+        {
+            "name": "Select Word",
+            "title": "Select word forward (Shift: whole line); repeat extends",
+            "shortName": "SelWd"
+        },
+        {
+            "name": "Select Word Back",
+            "title": "Select word backward",
+            "shortName": "SelWB"
+        },
+        {
+            "name": "Select Line",
+            "title": "Select current line; repeat extends down",
+            "shortName": "SelLn"
+        },
+        {
+            "name": "Select Line Up",
+            "title": "Extend line selection upward",
+            "shortName": "SelL↑"
+        },
+        {
+            "name": "Sentence Case",
+            "title": "Toggle auto-capitalize after . ! ?",
+            "shortName": "SCase"
+        },
+        {
+            "name": "Custom Shift Keys",
+            "title": "Toggle the custom Shift replacements",
+            "shortName": "CSK"
+        },
+        {
+            "name": "OS Cut",
+            "title": "Cut (Cmd-X on mac, Ctrl-X on pc)",
+            "shortName": "Cut"
+        },
+        {
+            "name": "OS Copy",
+            "title": "Copy (Cmd-C on mac, Ctrl-C on pc)",
+            "shortName": "Copy"
+        },
+        {
+            "name": "OS Paste",
+            "title": "Paste (Cmd-V on mac, Ctrl-V on pc)",
+            "shortName": "Paste"
+        },
+        {
+            "name": "OS Undo",
+            "title": "Undo (Cmd-Z on mac, Ctrl-Z on pc)",
+            "shortName": "Undo"
+        },
+        {
+            "name": "OS Redo",
+            "title": "Redo (Shift-Cmd-Z on mac, Ctrl-Y on pc)",
+            "shortName": "Redo"
+        },
+        {
+            "name": "OS App Switch",
+            "title": "App switcher (Cmd-Tab / Alt-Tab)",
+            "shortName": "AppSw"
+        },
+        {
+            "name": "OS Select All",
+            "title": "Select all (Cmd-A / Ctrl-A)",
+            "shortName": "SelAll"
+        },
+        {
+            "name": "OS New Tab",
+            "title": "New tab (Cmd-T / Ctrl-T)",
+            "shortName": "NewTab"
+        },
+        {
+            "name": "OS Close",
+            "title": "Close window/tab (Cmd-W / Ctrl-W)",
+            "shortName": "Close"
+        },
+        {
+            "name": "Num Word",
+            "title": "Number layer stays on while typing numbers",
+            "shortName": "NumWd"
+        },
+        {
+            "name": "Layer RGB Map",
+            "title": "Toggle per-layer per-key RGB map vs VialRGB effects",
+            "shortName": "LyRGB"
+        }
+    ]
+}
