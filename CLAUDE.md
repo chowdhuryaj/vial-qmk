@@ -420,6 +420,26 @@ no pointing device). 17 custom keycodes; THE keycode rule applies
 - EEPROM sizing is RAM-constrained (F103, 20 KB): 8 K backing / 4 K logical.
   8 K logical left 560 bytes of heap; don't grow it back.
 
-**Still pending** (deferred, not forgotten): Flask macOS app support for this
-device (encoder editor, RGB painter, display push panel — mirror the Adept UI
-patterns) and exercising `.vil` save/load as the bootloader-erase mitigation.
+**Flask app support (landed 2026-07-06):** `~/AdeptCompanion` now treats this
+board as its third Flask device (`isNLKB16`, VID/PID match; `TunableDevice
+.nlkb16`; expected protocol version is per-family — NLKB16 v2 ≠ trackballs'
+v10, don't compare across families). New palette tabs: **Encoders** (generic
+Vial encoder editor — `[0xFE,0x03/0x04]`, GET returns ccw at bytes 0-1 / cw
+at 2-3, both BE; hardware-verified; shows on ANY board whose KLE has
+`e`-flagged caps), **RGB** (painter for `0x21`; GET/SET led are
+payload-addressed `[layer,led,H,S,V]` — NOT u16 frames), **Display** (8×5
+safe-zone editor pushing LOGICAL lines 4-11, hold-ms tunable, health +
+re-init button). KLE parse gotcha fixed app-side: encoder legends are
+"encIdx,dir" + `"e"` at legend line 9 — parsed as keys they mint phantoms
+exactly on matrix (0,0),(0,1),(1,0),(1,1),(2,0),(2,1). `.vil` files now
+round-trip `encoder_layout` (Vial GUI schema) + `flask_rgbmap` (8×23 HSV) —
+that pair is the bootloader-erase restore path. Keymap bake: FLASK-BAKE
+markers added to this keymap.c (extra load-bearing here — the bootloader
+erase makes the baked block the post-flash layout); Build tab routes
+`nlofin/` targets to a .bin artifact (dfu-util flash, not uf2). vial.json
+shortNames renamed to the cross-device caps (SelW/OSCut/… — Flask's
+TypingTab paste chips key on them); **the device serves the old names until
+reflashed** (cosmetic until then; no protocol/EEPROM change, still v2).
+
+**Still pending**: exercising `.vil` save/load against a real reflash cycle
+(the machinery is in place, untested end-to-end on this board).

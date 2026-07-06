@@ -66,22 +66,22 @@
         {
             "name": "Select Word",
             "title": "Select word forward (Shift: whole line); repeat extends",
-            "shortName": "SelWd"
+            "shortName": "SelW"
         },
         {
             "name": "Select Word Back",
             "title": "Select word backward",
-            "shortName": "SelWB"
+            "shortName": "SelB"
         },
         {
             "name": "Select Line",
             "title": "Select current line; repeat extends down",
-            "shortName": "SelLn"
+            "shortName": "SelL"
         },
         {
             "name": "Select Line Up",
             "title": "Extend line selection upward",
-            "shortName": "SelL↑"
+            "shortName": "SelU"
         },
         {
             "name": "Sentence Case",
@@ -96,47 +96,47 @@
         {
             "name": "OS Cut",
             "title": "Cut (Cmd-X on mac, Ctrl-X on pc)",
-            "shortName": "Cut"
+            "shortName": "OSCut"
         },
         {
             "name": "OS Copy",
             "title": "Copy (Cmd-C on mac, Ctrl-C on pc)",
-            "shortName": "Copy"
+            "shortName": "OSCpy"
         },
         {
             "name": "OS Paste",
             "title": "Paste (Cmd-V on mac, Ctrl-V on pc)",
-            "shortName": "Paste"
+            "shortName": "OSPst"
         },
         {
             "name": "OS Undo",
             "title": "Undo (Cmd-Z on mac, Ctrl-Z on pc)",
-            "shortName": "Undo"
+            "shortName": "OSUnd"
         },
         {
             "name": "OS Redo",
             "title": "Redo (Shift-Cmd-Z on mac, Ctrl-Y on pc)",
-            "shortName": "Redo"
+            "shortName": "OSRed"
         },
         {
             "name": "OS App Switch",
             "title": "App switcher (Cmd-Tab / Alt-Tab)",
-            "shortName": "AppSw"
+            "shortName": "OSApp"
         },
         {
             "name": "OS Select All",
             "title": "Select all (Cmd-A / Ctrl-A)",
-            "shortName": "SelAll"
+            "shortName": "OSAll"
         },
         {
             "name": "OS New Tab",
             "title": "New tab (Cmd-T / Ctrl-T)",
-            "shortName": "NewTab"
+            "shortName": "OSTab"
         },
         {
             "name": "OS Close",
             "title": "Close window/tab (Cmd-W / Ctrl-W)",
-            "shortName": "Close"
+            "shortName": "OSCls"
         },
         {
             "name": "Num Word",

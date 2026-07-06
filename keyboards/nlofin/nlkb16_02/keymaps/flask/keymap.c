@@ -56,56 +56,75 @@ enum nlkb16_keycodes {
  * 8), big knob push = mute, L1 = RGB controls. L7 = settings (boot, RGB map).
  * ------------------------------------------------------------------------- */
 // clang-format off
+/* FLASK-BAKE-BEGIN — Flask's Build tab "Bake current keymap as default"
+ * replaces everything between these two markers with a raw-matrix dump of
+ * the device's live keymap (row-major [row][col] hex keycodes, one block per
+ * layer). Don't hand-edit a baked block; edit the layout in Flask/Vial and
+ * re-bake. The LAYOUT() form below survives only until the first bake.
+ * Worth more on this board than the others: the Maple bootloader mass-erases
+ * the EEPROM on every flash, so the baked block IS the post-flash layout. */
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
-    [0] = LAYOUT(
-        KC_1,    KC_2,    KC_3,    KC_4,     KC_MPLY,
-        KC_5,    KC_6,    KC_7,    KC_8,     TO(1),
-        KC_9,    KC_0,    KC_UP,   KC_ENT,   KC_MUTE,
-        MO(7),   KC_LEFT, KC_DOWN, KC_RIGHT
-    ),
-    [1] = LAYOUT(
-        RGB_SPD,  RGB_SPI, KC_TRNS, KC_TRNS,  KC_TRNS,
-        RGB_SAD,  RGB_SAI, KC_TRNS, KC_TRNS,  TO(2),
-        RGB_RMOD, RGB_MOD, RGB_HUI, KC_TRNS,  KC_TRNS,
-        RGB_TOG,  RGB_VAD, RGB_HUD, RGB_VAI
-    ),
-    [2] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  TO(3),
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [3] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  TO(4),
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [4] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  TO(5),
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [5] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  TO(6),
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [6] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  TO(7),
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [7] = LAYOUT(
-        KC_TRNS,    KC_TRNS, KC_TRNS, QK_BOOT,  KC_TRNS,
-        KC_TRNS,    KC_TRNS, KC_TRNS, KC_TRNS,  TO(0),
-        KC_TRNS,    KC_TRNS, KC_TRNS, KC_TRNS,  KC_TRNS,
-        RGBMAP_TOG, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
+    /* Baked by Flask (2026-07-06) from the live keymap of NLKB16-02.
+       Raw matrix form, row-major [row][col] hex keycodes. Re-bake from
+       the Build tab instead of hand-editing. */
+    /* ===== 0: Layer 0 ===== */
+    [0] = {
+        { 0x001E, 0x001F, 0x0020, 0x0021, 0x00AE },
+        { 0x0022, 0x0023, 0x0024, 0x0025, 0x5201 },
+        { 0x0026, 0x0027, 0x0052, 0x0028, 0x00A8 },
+        { 0x5227, 0x0050, 0x0051, 0x004F, 0x0000 },
+    },
+    /* ===== 1: Layer 1 ===== */
+    [1] = {
+        { 0x782A, 0x7829, 0x0001, 0x0001, 0x0001 },
+        { 0x7826, 0x7825, 0x0001, 0x0001, 0x5202 },
+        { 0x7822, 0x7821, 0x7823, 0x0001, 0x0001 },
+        { 0x7820, 0x7828, 0x7824, 0x7827, 0x0000 },
+    },
+    /* ===== 2: Layer 2 ===== */
+    [2] = {
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5203 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+    },
+    /* ===== 3: Layer 3 ===== */
+    [3] = {
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5204 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+    },
+    /* ===== 4: Layer 4 ===== */
+    [4] = {
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5205 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+    },
+    /* ===== 5: Layer 5 ===== */
+    [5] = {
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5206 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+    },
+    /* ===== 6: Layer 6 ===== */
+    [6] = {
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5207 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+    },
+    /* ===== 7: Layer 7 ===== */
+    [7] = {
+        { 0x0001, 0x0001, 0x0001, 0x7C00, 0x0001 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5200 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+        { 0x7E10, 0x0001, 0x0001, 0x0001, 0x0000 },
+    },
 };
+/* FLASK-BAKE-END */
 
 #ifdef ENCODER_MAP_ENABLE
 const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
