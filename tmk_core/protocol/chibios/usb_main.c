@@ -595,7 +595,7 @@ void send_raw_hid(uint8_t *data, uint8_t length) {
 void raw_hid_task(void) {
     uint8_t buffer[RAW_EPSIZE];
     while (receive_report(USB_ENDPOINT_OUT_RAW, buffer, sizeof(buffer))) {
-        raw_hid_receive(RAW_HID_SRC_USB, buffer, sizeof(buffer));
+        raw_hid_receive(buffer, sizeof(buffer));
     }
 }
 

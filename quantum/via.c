@@ -65,8 +65,7 @@ void via_qmk_rgb_matrix_get_value(uint8_t *data);
 static uint8_t rgb_matrix_value_id_mask;
 #endif
 
-__attribute__((weak)) void via_raw_hid_send(uint8_t src, uint8_t *data, uint8_t length) {
-    (void)src;
+__attribute__((weak)) void via_raw_hid_send(uint8_t *data, uint8_t length) {
     raw_hid_send(data, length);
 }
 
@@ -197,7 +196,7 @@ __attribute__((weak)) void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
 //
 // raw_hid_send() is called at the end, with the same buffer, which was
 // possibly modified with returned values.
-void raw_hid_receive(uint8_t src, uint8_t *data, uint8_t length) {
+void raw_hid_receive(uint8_t *data, uint8_t length) {
     uint8_t *command_id   = &(data[0]);
     uint8_t *command_data = &(data[1]);
 
@@ -452,7 +451,7 @@ skip:
 #endif
     // Return the same buffer, optionally with values changed
     // (i.e. returning state to the host, or the unhandled state).
-    via_raw_hid_send(src, data, length);
+    via_raw_hid_send(data, length);
 }
 
 #if defined(VIA_QMK_BACKLIGHT_ENABLE)
