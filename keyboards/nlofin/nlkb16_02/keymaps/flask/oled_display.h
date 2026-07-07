@@ -36,6 +36,19 @@
 #    define NLK_DISPLAY_HOLD_MS_MAX 60000
 #endif
 
+// Idle sleep (v3): seconds of no key/encoder input before the status screen
+// stops drawing and the panel is switched off (0 = never sleep). Without
+// this the panel NEVER slept: the driver's OLED_TIMEOUT is re-armed by any
+// dirty block, and the ticking uptime widget dirtied one every second —
+// permanent-on OLED = burn-in. Any key wakes it (quantum calls oled_on on
+// input activity); a Flask push wakes it too (pushed content re-renders).
+#ifndef NLK_DISPLAY_SLEEP_S_DEFAULT
+#    define NLK_DISPLAY_SLEEP_S_DEFAULT 120
+#endif
+#ifndef NLK_DISPLAY_SLEEP_S_MAX
+#    define NLK_DISPLAY_SLEEP_S_MAX 3600
+#endif
+
 // Fallback-screen widgets (v3, 2026-07-06): each of the 8 visible lines
 // renders one widget, assignable over HID (display channel, 0x20 + line) and
 // persisted in nlk_config. Every widget draws within the 5-char glass width.
@@ -88,6 +101,8 @@ uint16_t oled_display_i2c_scan_result(void);
 
 void     oled_display_set_hold_ms(uint16_t ms); // clamps to MIN..MAX
 uint16_t oled_display_get_hold_ms(void);
+void     oled_display_set_sleep_s(uint16_t s); // clamps to 0..SLEEP_S_MAX
+uint16_t oled_display_get_sleep_s(void);
 
 // Panel-probe hooks (HID SET 0x07/0x08). Both run deferred inside
 // oled_display_task — raw_hid_receive and oled_task share the main-loop

@@ -140,6 +140,17 @@ uint16_t oled_display_get_hold_ms(void) {
     return hold_ms;
 }
 
+static volatile uint16_t sleep_s = NLK_DISPLAY_SLEEP_S_DEFAULT;
+
+void oled_display_set_sleep_s(uint16_t s) {
+    if (s > NLK_DISPLAY_SLEEP_S_MAX) s = NLK_DISPLAY_SLEEP_S_MAX;
+    sleep_s = s;
+}
+
+uint16_t oled_display_get_sleep_s(void) {
+    return sleep_s;
+}
+
 static void render_pushed(void) {
     for (uint8_t l = 0; l < NLK_DISPLAY_LINES; l++) {
         oled_set_cursor(0, l);
@@ -305,6 +316,11 @@ bool oled_display_task(void) {
     }
     if (oled_display_pushed_active()) {
         render_pushed();
+    } else if (sleep_s != 0 && last_input_activity_elapsed() > (uint32_t)sleep_s * 1000) {
+        // Idle: stop drawing BEFORE switching off — any dirty block makes
+        // oled_render_dirty re-assert oled_on, which is exactly how the
+        // ticking uptime widget kept the panel lit forever.
+        oled_off();
     } else {
         render_fallback();
     }

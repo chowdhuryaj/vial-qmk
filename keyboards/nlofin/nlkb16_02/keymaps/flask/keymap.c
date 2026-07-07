@@ -224,8 +224,10 @@ typedef struct __attribute__((packed)) {
     nlk_rgbmap_t rgbmap;
     // OLED display.
     uint16_t disp_hold_ms;
-    // v2: per-line fallback-screen widget assignment (visible lines 0-7).
-    uint8_t disp_widgets[NLK_DISPLAY_VISIBLE_LINES];
+    // v2: per-line fallback-screen widget assignment (visible lines 0-7)
+    // + idle sleep (seconds of no input before the panel switches off).
+    uint8_t  disp_widgets[NLK_DISPLAY_VISIBLE_LINES];
+    uint16_t disp_sleep_s;
 } nlk_config_t;
 _Static_assert(sizeof(nlk_config_t) <= EECONFIG_USER_DATA_SIZE, "nlk_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -249,6 +251,7 @@ static void nlk_config_set_defaults(void) {
         .rgbmap_enabled   = NLK_RGBMAP_ENABLED_DEFAULT ? 1 : 0,
         .disp_hold_ms     = NLK_DISPLAY_HOLD_MS_DEFAULT,
         .disp_widgets     = NLK_DISPLAY_WIDGET_DEFAULTS,
+        .disp_sleep_s     = NLK_DISPLAY_SLEEP_S_DEFAULT,
     };
     // csk_table, leader_seqs and rgbmap zero-init = empty slots / all-black
     // map; combo masks default to "all layers allowed".
@@ -276,6 +279,7 @@ static void nlk_config_apply(void) {
     per_layer_rgb_set_enabled(nlk_config.rgbmap_enabled != 0);
     memcpy(per_layer_rgb_table(), nlk_config.rgbmap, sizeof(nlk_config.rgbmap));
     oled_display_set_hold_ms(nlk_config.disp_hold_ms);
+    oled_display_set_sleep_s(nlk_config.disp_sleep_s);
     // Through the setter (not memcpy): it clamps ids a newer config wrote.
     for (uint8_t i = 0; i < NLK_DISPLAY_VISIBLE_LINES; i++) {
         oled_display_set_widget(i, nlk_config.disp_widgets[i]);
@@ -506,8 +510,8 @@ void keyboard_post_init_user(void) {
 // v2 (2026-07-06): display channel raw-cmd inject (0x07) + reinit (0x08),
 // panel freeze diagnosis.
 // v3 (2026-07-06): fallback-screen widgets (display 0x09 count RO, 0x20+line
-// get/set, persisted) + 3 new OS-shortcut keycodes (OS_TABP/OS_TABN/OS_LNCH,
-// indices 17-19).
+// get/set, persisted) + idle panel sleep (0x0A seconds, 0 = never) + 3 new
+// OS-shortcut keycodes (OS_TABP/OS_TABN/OS_LNCH, indices 17-19).
 #define NLK_HID_PROTOCOL_VERSION 3
 
 enum nlk_hid_channel {
@@ -591,6 +595,7 @@ enum nlk_hid_display_value {
     nlk_display_raw_cmd    = 0x07,
     nlk_display_reinit     = 0x08, // SET: re-run full oled_init(). v2.
     nlk_display_widget_cnt = 0x09, // RO: NLK_WIDGET_COUNT (v3)
+    nlk_display_sleep_s    = 0x0A, // idle seconds before panel off; 0 = never (v3)
     // SET 0x10: payload = [line, ASCII chars] — push a line
     nlk_display_push       = 0x10,
     // SET 0x11: release (back to fallback screen immediately)
@@ -737,6 +742,10 @@ static bool nlk_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
             if (value_id == nlk_display_widget_cnt) {
                 nlk_hid_write_u16(payload, NLK_WIDGET_COUNT);
+                return true;
+            }
+            if (value_id == nlk_display_sleep_s) {
+                nlk_hid_write_u16(payload, oled_display_get_sleep_s());
                 return true;
             }
             if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_VISIBLE_LINES) {
@@ -894,6 +903,10 @@ static bool nlk_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 oled_display_request_reinit();
                 return true;
             }
+            if (value_id == nlk_display_sleep_s) {
+                oled_display_set_sleep_s(nlk_hid_read_u16(payload)); // setter clamps
+                return true;
+            }
             if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_VISIBLE_LINES) {
                 // Clamp in u16 wire space; the setter clamps the id range.
                 uint16_t widget = nlk_hid_read_u16(payload);
@@ -942,6 +955,7 @@ static bool nlk_hid_save(uint8_t channel) {
             break;
         case nlk_ch_display:
             nlk_config.disp_hold_ms = oled_display_get_hold_ms();
+            nlk_config.disp_sleep_s = oled_display_get_sleep_s();
             memcpy(nlk_config.disp_widgets, oled_display_widget_table(), sizeof(nlk_config.disp_widgets));
             break;
         default:

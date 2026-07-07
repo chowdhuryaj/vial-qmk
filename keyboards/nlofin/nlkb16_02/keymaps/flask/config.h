@@ -47,7 +47,8 @@
 //      sentence case), leader sequences, OS shortcuts, num word, per-combo
 //      layer masks, per-layer per-key RGB map (8 layers x 23 LEDs x HSV),
 //      display hold time. ~790 bytes used.
-// v2 = appended disp_widgets[8] (per-line fallback-screen widget ids).
+// v2 = appended disp_widgets[8] (per-line fallback-screen widget ids) +
+//      disp_sleep_s (idle seconds before the panel switches off).
 #define EECONFIG_USER_DATA_SIZE 1024
 #define EECONFIG_USER_DATA_VERSION 2
 
@@ -94,6 +95,12 @@
 #define NLK_DISPLAY_HOLD_MS_DEFAULT 3000
 #define NLK_DISPLAY_HOLD_MS_MIN 500
 #define NLK_DISPLAY_HOLD_MS_MAX 60000
+// Idle sleep: seconds without key/encoder input before the status screen
+// stops drawing and the panel turns off (0 = never). Any key wakes it.
+// Without this the panel never slept — the ticking uptime widget re-armed
+// the driver's OLED_TIMEOUT every second (burn-in). HID 0x22/0x0A.
+#define NLK_DISPLAY_SLEEP_S_DEFAULT 120
+#define NLK_DISPLAY_SLEEP_S_MAX 3600
 
 /* ---------------------------------------------------------------------------
  * RGB boot/wake holdoff (keymap.c)
