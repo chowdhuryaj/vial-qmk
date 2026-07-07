@@ -74,7 +74,7 @@ keycodes) and then runs the real build.
    the removed entry in both files identically.
 4. Ceiling: 64 slots (`QK_KB_0..QK_KB_63`, 0x7E00-0x7E3F — corrected from 32
    on 2026-07-04; the Svalboard had shipped past 32 since its v7). `check.sh`
-   reports current usage (34 in use as of v1.1.0).
+   reports current usage (37 in use as of 2026-07-06).
 
 `check.sh` verifies the two lists are the same length and that every enum
 entry has a `process_record_user` case. It cannot verify *semantic* order
@@ -255,8 +255,11 @@ num word (now on the Adept too — default target layer 4), raw DPI 200-4000
 step 50 on `0x14` (CPI value id; 0 = legacy table/index mode, writing an
 index re-arms it), auto-mouse target layer on `0x1B`, wiggle
 action/target/source knobs on `0x12`, 4 more OS shortcuts
-(OS_APPSW/OS_SELALL/OS_NEWTAB/OS_CLOSE) + NUMWORD = keycodes 29-33.
-Protocol currently **10**; EEPROM datablock VERSION **11**.
+(OS_APPSW/OS_SELALL/OS_NEWTAB/OS_CLOSE) + NUMWORD = keycodes 29-33 ·
+**v11 (2026-07-06):** OS_TABP/OS_TABN/OS_LNCH = keycodes 34-36 (prev/next
+browser tab ^⇧Tab/^Tab both modes; Launch ⌘Space mac / no-op pc — no
+channel changes, bump = "these keycodes exist on this flash").
+Protocol currently **11**; EEPROM datablock VERSION **11**.
 Gestures are **8-direction** since v3 (`PD_GESTURES_NUM_DIRECTIONS 8`,
 internal order E SE S SW W NW N NE); an empty diagonal slot falls back to
 the nearest cardinal by dominant axis, so 4-way sets keep their old feel.
@@ -371,15 +374,18 @@ values read off the live device; stock firmware backed up at
 
 **Keymap** (`keymaps/flask/`): Vial (8 layers, 32 tap dances/combos/key
 overrides) + VialRGB (stock protocol untouched) + Flask raw HID protocol
-(**v2**; EEPROM datablock v1) with channels: `0x00` meta · `0x16` custom shift
+(**v3**; EEPROM datablock v2) with channels: `0x00` meta · `0x16` custom shift
 keys · `0x17` select word · `0x18` sentence case · `0x19` leader · `0x1D` OS
 shortcuts · `0x1E` num word · `0x20` per-combo layer masks · `0x21` per-layer
 per-key RGB map (8 layers × 23 LEDs × HSV, `RGBMAP_TOG`) · `0x22` OLED
 (push lines `0x10`, release `0x11`, hold `0x01`, diagnostics `0x02-0x06`,
 **raw panel cmd inject `0x07` + full re-init `0x08`** — the display-debug
-probes, v2). Shares the `qmk-flask-modules` submodule (getreuer set only —
-no pointing device). 17 custom keycodes; THE keycode rule applies
-(enum ↔ `vial.json`).
+probes, v2; **v3 (2026-07-06): fallback-screen widgets** — one assignable
+widget per visible line (`0x09` count RO, `0x20`+line get/set; ids in
+`nlk_widget_t`, oled_display.h) + **idle panel sleep** `0x0A` (seconds, 0 =
+never, default 120 — see burn-in fact below)). Shares the `qmk-flask-modules`
+submodule (getreuer set only — no pointing device). 20 custom keycodes;
+THE keycode rule applies (enum ↔ `vial.json`).
 
 **Hard-won hardware facts — read before touching the display or RGB:**
 - **The glass is a 64×32 window into the SSD1306's 128×64 RAM** (SEG columns
@@ -406,6 +412,13 @@ no pointing device). 17 custom keycodes; THE keycode rule applies
 - **The Maple bootloader mass-erases the EEPROM region on every flash** —
   persisted settings reverting to defaults after a reflash is the bootloader,
   not a firmware regression (same-session power cycles DO persist).
+- **The panel never slept until v3's idle sleep** — the oled driver's
+  `OLED_TIMEOUT` is re-armed by ANY dirty block (`oled_render_dirty` calls
+  `oled_on`), and the ticking uptime widget dirtied one every second, so the
+  OLED stayed lit 24/7 (burn-in). Fix = the status screen stops drawing and
+  calls `oled_off()` after `0x0A` idle seconds (keyed to
+  `last_input_activity_elapsed()`); any key wakes it, pushes render through
+  it. Don't add another always-ticking widget without remembering this.
 - **Big knob (matrix 2,4) is not pushable** — vendor never wired the switch;
   don't bind anything there.
 - Full-width (10-char) pushed lines must NOT be followed by
@@ -441,5 +454,6 @@ shortNames renamed to the cross-device caps (SelW/OSCut/… — Flask's
 TypingTab paste chips key on them); **the device serves the old names until
 reflashed** (cosmetic until then; no protocol/EEPROM change, still v2).
 
-**Still pending**: exercising `.vil` save/load against a real reflash cycle
-(the machinery is in place, untested end-to-end on this board).
+**`.vil`-vs-reflash exercised 2026-07-06** (real bootloader erase → `.vil`
+restore round-trip verified). The .vil tuning dump also carries the display
+widget layout + idle sleep since the same date.
