@@ -123,6 +123,13 @@
  * ------------------------------------------------------------------------- */
 #define NLK_RGB_HOLDOFF_MS 3000
 
+/* RGB defaults dark (v7, user ask): the Maple bootloader mass-erases the
+ * EEPROM on every flash, so whatever this seeds IS the post-flash state —
+ * boot with the strip off instead of the stock animation. RGB_TOG (or
+ * Flask's RGB tab) turns it on, and THAT persists across power cycles
+ * (but not across reflashes — bootloader erase, see CLAUDE.md). */
+#define RGB_MATRIX_DEFAULT_ON false
+
 /* ---------------------------------------------------------------------------
  * Tap-hold and combos
  * ------------------------------------------------------------------------- */

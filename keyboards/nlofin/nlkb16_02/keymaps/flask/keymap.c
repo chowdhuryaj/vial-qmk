@@ -52,6 +52,9 @@ enum nlkb16_keycodes {
     // no jog). Bind to a knob's CCW/CW for a scroll-speed dial.
     ASC_UP,            // 20 autoscroll: step speed up (through zero stops)
     ASC_DOWN,          // 21 autoscroll: step speed down
+    // v7 additions (2026-07-07): layer dial — wraps through all 8 layers.
+    LYR_UP,            // 22 go one layer up (7 wraps to 0)
+    LYR_DN,            // 23 go one layer down (0 wraps to 7)
 };
 
 /* ---------------------------------------------------------------------------
@@ -76,21 +79,21 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     /* Baked by Flask (2026-07-07) from the live keymap of NLKB16-02.
        Raw matrix form, row-major [row][col] hex keycodes. Re-bake from
        the Build tab instead of hand-editing. */
-    /* ===== 0: Layer 0 ===== */
+    /* ===== 0: Base ===== */
     [0] = {
-        { 0x7E00, 0x7E01, 0x7E02, 0x7E03, 0x00AE },
-        { 0x0022, 0x7C58, 0x0024, 0x0025, 0x5201 },
-        { 0x0026, 0x0027, 0x0052, 0x0028, 0x00A8 },
-        { 0x7E10, 0x0050, 0x0051, 0x004F, 0x0000 },
+        { 0x0015, 0x001C, 0x0044, 0x0045, 0x00AE },
+        { 0x0068, 0x0069, 0x006A, 0x006B, 0x5200 },
+        { 0x0029, 0x022B, 0x002B, 0x0028, 0x00A8 },
+        { 0x006B, 0x006C, 0x002C, 0x4139, 0x0000 },
     },
-    /* ===== 1: Layer 1 ===== */
+    /* ===== 1: bl ===== */
     [1] = {
-        { 0x782A, 0x7829, 0x0001, 0x0001, 0x0001 },
+        { 0x7C00, 0x7829, 0x0001, 0x0001, 0x0001 },
         { 0x7826, 0x7825, 0x0001, 0x0001, 0x5202 },
         { 0x7822, 0x7821, 0x7823, 0x0001, 0x0001 },
-        { 0x7820, 0x7828, 0x7824, 0x7827, 0x0000 },
+        { 0x7820, 0x7828, 0x7824, 0x0001, 0x0000 },
     },
-    /* ===== 2: Layer 2 ===== */
+    /* ===== 2: ed ===== */
     [2] = {
         { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
         { 0x0001, 0x0001, 0x0001, 0x0001, 0x5203 },
@@ -470,6 +473,19 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 oled_display_overlay(NLK_OVERLAY_AUTOSCROLL, 0);
             }
             return false;
+        case LYR_UP:
+        case LYR_DN: {
+            // Layer dial: move to the adjacent dynamic layer, wrapping at the
+            // ends. layer_move (not layer_on) so stacked TO()/momentary state
+            // can't accumulate while spinning an encoder through the ring.
+            if (record->event.pressed) {
+                uint8_t layer = get_highest_layer(layer_state | default_layer_state);
+                uint8_t count = DYNAMIC_KEYMAP_LAYER_COUNT;
+                layer_move(keycode == LYR_UP ? (layer + 1) % count
+                                             : (layer + count - 1) % count);
+            }
+            return false;
+        }
     }
     return true;
 }
@@ -614,7 +630,14 @@ void keyboard_post_init_user(void) {
 // payload-addressed); push line ids are BIG lines 0-3; transient overlays
 // (volume/RGB brightness/autoscroll level) with duration at 0x0B; leader
 // timeout live at 0x19/0x01. RX/TX debug key blinks removed.
-#define NLK_HID_PROTOCOL_VERSION 5
+// v6 (2026-07-07): rendered-line mirror (display 0x0C, payload-addressed) —
+// feeds the Flask HUD's live OLED tile.
+// v7 (2026-07-07): LYR_UP/LYR_DN keycodes (indices 22-23, wrap through all 8
+// layers via layer_move — encoder layer dial) + encoder 0/1 rotation
+// direction corrected at the pin level (keyboard.json pin_a/pin_b swapped;
+// the two small knobs read backwards on hardware) + RGB_MATRIX_DEFAULT_ON
+// false (panel boots dark after the Maple bootloader's EEPROM erase).
+#define NLK_HID_PROTOCOL_VERSION 7
 
 enum nlk_hid_channel {
     nlk_ch_meta        = 0x00, // 0x01 protocol version RO; 0x02 active layer RO
@@ -711,6 +734,10 @@ enum nlk_hid_display_value {
     nlk_display_widget_cnt = 0x09, // RO: NLK_WIDGET_COUNT (v3)
     nlk_display_sleep_s    = 0x0A, // idle seconds before panel off; 0 = never (v3)
     nlk_display_overlay_ms = 0x0B, // transient overlay duration; 0 = off (v5)
+    // GET only, payload-addressed (v6): in [line] → out [line, invert mask,
+    // 5 rendered chars, panel_on]. Mirrors the renderer's own line cache —
+    // pushes, widgets and overlays all read back exactly as shown.
+    nlk_display_line       = 0x0C,
     // SET 0x10: payload = [line, ASCII chars] — push a line (v5: BIG line 0-3)
     nlk_display_push       = 0x10,
     // SET 0x11: release (back to fallback screen immediately)
@@ -873,6 +900,12 @@ static bool nlk_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
             if (value_id == nlk_display_widget_cnt) {
                 nlk_hid_write_u16(payload, NLK_WIDGET_COUNT);
+                return true;
+            }
+            if (value_id == nlk_display_line) {
+                // Payload in: [line]; out: [line, mask, 5 chars, panel_on].
+                if (!oled_display_rendered_line(payload[0], &payload[1])) return false;
+                payload[1 + 1 + NLK_DISPLAY_BIG_COLS] = oled_display_panel_on() ? 1 : 0;
                 return true;
             }
             if (value_id == nlk_display_sleep_s) {

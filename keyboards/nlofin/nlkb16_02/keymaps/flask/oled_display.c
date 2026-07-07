@@ -204,6 +204,21 @@ static void render_big_line(uint8_t line, const char *text, uint8_t invert_mask)
     }
 }
 
+bool oled_display_rendered_line(uint8_t line, uint8_t *out) {
+    if (line >= NLK_DISPLAY_BIG_LINES) return false;
+    out[0] = cache_valid ? mask_cache[line] : 0;
+    if (cache_valid) {
+        memcpy(&out[1], line_cache[line], NLK_DISPLAY_BIG_COLS);
+    } else {
+        memset(&out[1], ' ', NLK_DISPLAY_BIG_COLS);
+    }
+    return true;
+}
+
+bool oled_display_panel_on(void) {
+    return is_oled_on();
+}
+
 /* Fallback-screen widgets: one per big line, assigned over HID and persisted
  * by the keymap. */
 static uint8_t widgets[NLK_DISPLAY_BIG_LINES] = NLK_DISPLAY_WIDGET_DEFAULTS;

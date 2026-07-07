@@ -93,6 +93,15 @@ uint8_t *oled_display_widget_table(void);
 void        oled_display_set_custom(uint8_t line, const uint8_t *text, uint8_t len);
 const char *oled_display_get_custom(uint8_t line); // NUL-terminated, 5 chars
 
+// Rendered-line mirror (HID GET 0x0C, protocol v6): copies what the glass
+// currently shows straight from the renderer's per-line cache, so pushed
+// content, widgets and overlays all mirror truthfully. out[0] = the line's
+// per-char invert mask, out[1..5] = its 5 chars (space-padded, no
+// terminator). Returns false for an out-of-range line.
+bool oled_display_rendered_line(uint8_t line, uint8_t *out);
+// Panel power state (false while the idle sleep / driver timeout has it off).
+bool oled_display_panel_on(void);
+
 // Transient overlays (v5): keymap hooks call these on volume / RGB
 // brightness / autoscroll events; the glass shows a big label + live value
 // for overlay_ms (0 = overlays disabled), then falls back.

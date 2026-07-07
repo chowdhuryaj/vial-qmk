@@ -172,6 +172,16 @@
             "name": "Autoscroll Down",
             "title": "Step autoscroll speed down (through zero stops)",
             "shortName": "AS−"
+        },
+        {
+            "name": "Layer Up",
+            "title": "Go one layer up, wrapping 7 back to 0 — bind to a knob for a layer dial",
+            "shortName": "Ly+"
+        },
+        {
+            "name": "Layer Down",
+            "title": "Go one layer down, wrapping 0 up to 7",
+            "shortName": "Ly−"
         }
     ]
 }
