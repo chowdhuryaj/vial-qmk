@@ -376,7 +376,7 @@ values read off the live device; stock firmware backed up at
 
 **Keymap** (`keymaps/flask/`): Vial (8 layers, 32 tap dances/combos/key
 overrides) + VialRGB (stock protocol untouched) + Flask raw HID protocol
-(**v5**; EEPROM datablock v4) with channels: `0x00` meta · `0x16` custom shift
+(**v7**; EEPROM datablock v4) with channels: `0x00` meta · `0x16` custom shift
 keys · `0x17` select word · `0x18` sentence case · `0x19` leader (**v5:
 `0x01` = live timeout ms** via a weak-getter patch in quantum/leader.c) ·
 `0x1A` autoscroll (**v4, 2026-07-06** — stepped mode only, no ball/no jog
@@ -396,9 +396,18 @@ lines** — own glcdfont copy pixel-doubled vertically, per-line render cache;
 push/widget ids are big lines 0-3, Custom-text widget id 13 with per-line
 text at `0x30`+line (payload-addressed), transient overlays (volume / RGB
 brightness / autoscroll level, live) with duration `0x0B` (default 2 s, 0 =
-off). The display-saga RX/TX debug key blinks are REMOVED (v5)). Shares the
-`qmk-flask-modules` submodule (getreuer set + autoscroll). 22 custom
-keycodes; THE keycode rule applies (enum ↔ `vial.json`).
+off). The display-saga RX/TX debug key blinks are REMOVED (v5); **v6
+(2026-07-07): rendered-line mirror `0x0C`** (payload-addressed GET: in
+[line] → [line, invert mask, 5 chars, panel_on], read from the renderer's
+own line cache — feeds the Flask HUD's live OLED tile)). **v7 (2026-07-07):**
+`LYR_UP`/`LYR_DN` keycodes (22-23, wrap through all 8 layers via
+`layer_move` — encoder layer dial), encoder 0/1 rotation direction fixed at
+the PIN level (keyboard.json pin_a/pin_b swapped — the two small knobs read
+backwards on hardware; the big knob was correct), and
+`RGB_MATRIX_DEFAULT_ON false` (post-flash EEPROM reseed boots the strip
+dark — RGB_TOG/Flask turns it on and persists until the next reflash).
+Shares the `qmk-flask-modules` submodule (getreuer set + autoscroll).
+24 custom keycodes; THE keycode rule applies (enum ↔ `vial.json`).
 
 **Hard-won hardware facts — read before touching the display or RGB:**
 - **The glass is a 64×32 window into the SSD1306's 128×64 RAM** (SEG columns
