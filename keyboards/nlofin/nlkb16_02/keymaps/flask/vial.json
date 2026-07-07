@@ -147,6 +147,21 @@
             "name": "Layer RGB Map",
             "title": "Toggle per-layer per-key RGB map vs VialRGB effects",
             "shortName": "LyRGB"
+        },
+        {
+            "name": "OS Prev Tab",
+            "title": "Previous browser tab: Ctrl-Shift-Tab (same in mac and pc modes)",
+            "shortName": "OSTbP"
+        },
+        {
+            "name": "OS Next Tab",
+            "title": "Next browser tab: Ctrl-Tab (same in mac and pc modes)",
+            "shortName": "OSTbN"
+        },
+        {
+            "name": "OS Launch",
+            "title": "Launcher: Cmd-Space (Spotlight) in mac mode; does nothing in pc mode for now",
+            "shortName": "OSLch"
         }
     ]
 }

@@ -153,51 +153,112 @@ static void render_pushed(void) {
     }
 }
 
+/* Fallback-screen widgets (v3): one per visible line, assigned over HID and
+ * persisted by the keymap. Table initializer reproduces the pre-v3 screen. */
+static uint8_t widgets[NLK_DISPLAY_VISIBLE_LINES] = NLK_DISPLAY_WIDGET_DEFAULTS;
+
+void oled_display_set_widget(uint8_t line, uint8_t widget) {
+    if (line >= NLK_DISPLAY_VISIBLE_LINES) return;
+    if (widget >= NLK_WIDGET_COUNT) widget = NLK_WIDGET_COUNT - 1;
+    widgets[line] = widget;
+}
+
+uint8_t oled_display_get_widget(uint8_t line) {
+    return (line < NLK_DISPLAY_VISIBLE_LINES) ? widgets[line] : NLK_WIDGET_BLANK;
+}
+
+uint8_t *oled_display_widget_table(void) {
+    return widgets;
+}
+
+// Draws one widget at the current cursor, ≤5 chars, then clears the rest of
+// the line. Widgets never reach canvas column 10, so the advance_page can't
+// hit the full-width wrap trap render_pushed dodges.
+static void render_widget_line(uint8_t widget) {
+    switch (widget) {
+        case NLK_WIDGET_LAYER:
+            oled_write_P(PSTR("LYR "), false);
+            oled_write_char('0' + get_highest_layer(layer_state | default_layer_state), true);
+            break;
+        case NLK_WIDGET_UPTIME: {
+            uint32_t secs = timer_read32() / 1000;
+            oled_write_P(PSTR("T "), false);
+            oled_write_char('0' + (secs / 100) % 10, false);
+            oled_write_char('0' + (secs / 10) % 10, false);
+            oled_write_char('0' + secs % 10, false);
+            break;
+        }
+        case NLK_WIDGET_MODS: {
+            uint8_t mods = get_mods() | get_weak_mods();
+            oled_write_char('C', mods & MOD_MASK_CTRL);
+            oled_write_char('S', mods & MOD_MASK_SHIFT);
+            oled_write_char('A', mods & MOD_MASK_ALT);
+            oled_write_char('G', mods & MOD_MASK_GUI);
+            break;
+        }
+        case NLK_WIDGET_OSM: {
+            uint8_t mods = get_oneshot_mods() | get_oneshot_locked_mods();
+            oled_write_char('o', false);
+            oled_write_char('C', mods & MOD_MASK_CTRL);
+            oled_write_char('S', mods & MOD_MASK_SHIFT);
+            oled_write_char('A', mods & MOD_MASK_ALT);
+            oled_write_char('G', mods & MOD_MASK_GUI);
+            break;
+        }
+        case NLK_WIDGET_OSL: {
+            bool active = is_oneshot_layer_active();
+            oled_write_P(PSTR("OSL "), false);
+            oled_write_char(active ? (char)('0' + get_oneshot_layer()) : '-', active);
+            break;
+        }
+        case NLK_WIDGET_LOCKS: {
+            led_t leds = host_keyboard_led_state();
+            oled_write_char('C', leds.caps_lock);
+            oled_write_char(' ', false);
+            oled_write_char('N', leds.num_lock);
+            oled_write_char(' ', false);
+            oled_write_char('S', leds.scroll_lock);
+            break;
+        }
+        case NLK_WIDGET_CAPS:
+            oled_write_P(PSTR("CAP"), host_keyboard_led_state().caps_lock);
+            break;
+        case NLK_WIDGET_NUMLOCK:
+            oled_write_P(PSTR("NLK"), host_keyboard_led_state().num_lock);
+            break;
+        case NLK_WIDGET_SCROLLLOCK:
+            oled_write_P(PSTR("SLK"), host_keyboard_led_state().scroll_lock);
+            break;
+        case NLK_WIDGET_RGBMAP:
+            oled_write_P(PSTR("MAP"), per_layer_rgb_get_enabled());
+            break;
+        case NLK_WIDGET_NUMWORD:
+            oled_write_P(PSTR("NUM"), num_word_is_active());
+            break;
+        case NLK_WIDGET_SENTENCE:
+            oled_write_P(PSTR("SC"), is_sentence_case_on());
+            break;
+        case NLK_WIDGET_BLANK:
+        default:
+            break;
+    }
+    oled_advance_page(true);
+}
+
 // Portrait canvas 10 x 16 (SSD1306 128x64 + ROTATION_90), but the GLASS is a
 // 64x32 window: lines 4..11, text columns 0..4 — see NLK_DISPLAY_VISIBLE_* in
-// keyboards/nlofin/nlkb16_02/config.h. Every line here must read within 5
-// characters. No room for a header; layer, uptime tick, module flags, lock
-// flags fill the 8 visible lines exactly.
+// keyboards/nlofin/nlkb16_02/config.h. Every widget reads within 5 characters;
+// the off-glass lines are kept blank.
 static void render_fallback(void) {
-    uint8_t  layer = get_highest_layer(layer_state | default_layer_state);
-    led_t    leds  = host_keyboard_led_state();
-    uint32_t secs  = timer_read32() / 1000;
-    uint8_t  line  = NLK_DISPLAY_VISIBLE_FIRST;
-
     for (uint8_t l = 0; l < NLK_DISPLAY_VISIBLE_FIRST; l++) {
         oled_set_cursor(0, l);
         oled_write_ln_P(PSTR(""), false);
     }
-
-    // "LYR 0" — layer digit inverted.
-    oled_set_cursor(0, line++);
-    oled_write_P(PSTR("LYR "), false);
-    oled_write_char('0' + layer, true);
-    oled_advance_page(true);
-
-    // "T 123" — uptime seconds, the liveness tick.
-    oled_set_cursor(0, line++);
-    oled_write_P(PSTR("T "), false);
-    oled_write_char('0' + (secs / 100) % 10, false);
-    oled_write_char('0' + (secs / 10) % 10, false);
-    oled_write_char('0' + secs % 10, false);
-    oled_advance_page(true);
-
-    oled_set_cursor(0, line++);
-    oled_write_ln_P(PSTR("MAP"), per_layer_rgb_get_enabled());
-    oled_set_cursor(0, line++);
-    oled_write_ln_P(PSTR("NUM"), num_word_is_active());
-    oled_set_cursor(0, line++);
-    oled_write_ln_P(PSTR("SC"), is_sentence_case_on());
-
-    oled_set_cursor(0, line++);
-    oled_write_ln_P(PSTR("CAP"), leds.caps_lock);
-    oled_set_cursor(0, line++);
-    oled_write_ln_P(PSTR("NLK"), leds.num_lock);
-    oled_set_cursor(0, line++);
-    oled_write_ln_P(PSTR("SLK"), leds.scroll_lock);
-
-    for (uint8_t l = line; l < NLK_DISPLAY_LINES; l++) {
+    for (uint8_t i = 0; i < NLK_DISPLAY_VISIBLE_LINES; i++) {
+        oled_set_cursor(0, NLK_DISPLAY_VISIBLE_FIRST + i);
+        render_widget_line(widgets[i]);
+    }
+    for (uint8_t l = NLK_DISPLAY_VISIBLE_FIRST + NLK_DISPLAY_VISIBLE_LINES; l < NLK_DISPLAY_LINES; l++) {
         oled_set_cursor(0, l);
         oled_write_ln_P(PSTR(""), false);
     }

@@ -43,6 +43,10 @@ enum nlkb16_keycodes {
     OS_CLOSE,          // 14 close window/tab (⌘W / ^W)
     NUMWORD,           // 15 num word: layer stays on while typing numbers
     RGBMAP_TOG,        // 16 per-layer RGB map: toggle map mode vs VialRGB effects
+    // v3 additions (2026-07-06)
+    OS_TABP,           // 17 previous browser tab (^⇧Tab, both modes)
+    OS_TABN,           // 18 next browser tab (^Tab, both modes)
+    OS_LNCH,           // 19 launcher (⌘Space in mac mode; pc: no-op)
 };
 
 /* ---------------------------------------------------------------------------
@@ -220,6 +224,8 @@ typedef struct __attribute__((packed)) {
     nlk_rgbmap_t rgbmap;
     // OLED display.
     uint16_t disp_hold_ms;
+    // v2: per-line fallback-screen widget assignment (visible lines 0-7).
+    uint8_t disp_widgets[NLK_DISPLAY_VISIBLE_LINES];
 } nlk_config_t;
 _Static_assert(sizeof(nlk_config_t) <= EECONFIG_USER_DATA_SIZE, "nlk_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -242,6 +248,7 @@ static void nlk_config_set_defaults(void) {
         .nw_layer         = NUM_WORD_LAYER_DEFAULT,
         .rgbmap_enabled   = NLK_RGBMAP_ENABLED_DEFAULT ? 1 : 0,
         .disp_hold_ms     = NLK_DISPLAY_HOLD_MS_DEFAULT,
+        .disp_widgets     = NLK_DISPLAY_WIDGET_DEFAULTS,
     };
     // csk_table, leader_seqs and rgbmap zero-init = empty slots / all-black
     // map; combo masks default to "all layers allowed".
@@ -269,6 +276,10 @@ static void nlk_config_apply(void) {
     per_layer_rgb_set_enabled(nlk_config.rgbmap_enabled != 0);
     memcpy(per_layer_rgb_table(), nlk_config.rgbmap, sizeof(nlk_config.rgbmap));
     oled_display_set_hold_ms(nlk_config.disp_hold_ms);
+    // Through the setter (not memcpy): it clamps ids a newer config wrote.
+    for (uint8_t i = 0; i < NLK_DISPLAY_VISIBLE_LINES; i++) {
+        oled_display_set_widget(i, nlk_config.disp_widgets[i]);
+    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -350,6 +361,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             return false;
         case RGBMAP_TOG:
             if (record->event.pressed) per_layer_rgb_set_enabled(!per_layer_rgb_get_enabled());
+            return false;
+        case OS_TABP:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_PREV_TAB);
+            return false;
+        case OS_TABN:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_NEXT_TAB);
+            return false;
+        case OS_LNCH:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_LAUNCH);
             return false;
     }
     return true;
@@ -485,7 +505,10 @@ void keyboard_post_init_user(void) {
  * ------------------------------------------------------------------------- */
 // v2 (2026-07-06): display channel raw-cmd inject (0x07) + reinit (0x08),
 // panel freeze diagnosis.
-#define NLK_HID_PROTOCOL_VERSION 2
+// v3 (2026-07-06): fallback-screen widgets (display 0x09 count RO, 0x20+line
+// get/set, persisted) + 3 new OS-shortcut keycodes (OS_TABP/OS_TABN/OS_LNCH,
+// indices 17-19).
+#define NLK_HID_PROTOCOL_VERSION 3
 
 enum nlk_hid_channel {
     nlk_ch_meta        = 0x00, // 0x01 protocol version RO; 0x02 active layer RO
@@ -567,10 +590,14 @@ enum nlk_hid_display_value {
     // GET: last inject result (0xFFFF never, 1 ACK, 0 fail). v2, freeze probe.
     nlk_display_raw_cmd    = 0x07,
     nlk_display_reinit     = 0x08, // SET: re-run full oled_init(). v2.
+    nlk_display_widget_cnt = 0x09, // RO: NLK_WIDGET_COUNT (v3)
     // SET 0x10: payload = [line, ASCII chars] — push a line
     nlk_display_push       = 0x10,
     // SET 0x11: release (back to fallback screen immediately)
     nlk_display_release    = 0x11,
+    // v3: fallback-screen widget per visible line (0-7): 0x20 + line,
+    // u16 = nlk_widget_t id. Persisted with the display channel save.
+    nlk_display_widget_base = 0x20,
 };
 
 static void nlk_hid_write_u16(uint8_t *payload, uint16_t value) {
@@ -706,6 +733,14 @@ static bool nlk_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
             if (value_id == nlk_display_raw_cmd) {
                 nlk_hid_write_u16(payload, oled_display_raw_cmd_result());
+                return true;
+            }
+            if (value_id == nlk_display_widget_cnt) {
+                nlk_hid_write_u16(payload, NLK_WIDGET_COUNT);
+                return true;
+            }
+            if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_VISIBLE_LINES) {
+                nlk_hid_write_u16(payload, oled_display_get_widget(value_id - nlk_display_widget_base));
                 return true;
             }
             return false;
@@ -859,6 +894,13 @@ static bool nlk_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 oled_display_request_reinit();
                 return true;
             }
+            if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_VISIBLE_LINES) {
+                // Clamp in u16 wire space; the setter clamps the id range.
+                uint16_t widget = nlk_hid_read_u16(payload);
+                if (widget > 0xFF) widget = 0xFF;
+                oled_display_set_widget(value_id - nlk_display_widget_base, (uint8_t)widget);
+                return true;
+            }
             return false;
 
         default:
@@ -900,6 +942,7 @@ static bool nlk_hid_save(uint8_t channel) {
             break;
         case nlk_ch_display:
             nlk_config.disp_hold_ms = oled_display_get_hold_ms();
+            memcpy(nlk_config.disp_widgets, oled_display_widget_table(), sizeof(nlk_config.disp_widgets));
             break;
         default:
             return false;

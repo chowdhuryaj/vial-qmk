@@ -36,6 +36,41 @@
 #    define NLK_DISPLAY_HOLD_MS_MAX 60000
 #endif
 
+// Fallback-screen widgets (v3, 2026-07-06): each of the 8 visible lines
+// renders one widget, assignable over HID (display channel, 0x20 + line) and
+// persisted in nlk_config. Every widget draws within the 5-char glass width.
+// IDs are wire values — append-only, same spirit as HID value ids.
+typedef enum {
+    NLK_WIDGET_BLANK = 0,
+    NLK_WIDGET_LAYER,      // "LYR n" — active layer, digit inverted
+    NLK_WIDGET_UPTIME,     // "T nnn" — uptime seconds (liveness tick)
+    NLK_WIDGET_MODS,       // "CSAG" — held modifiers, each lit while down
+    NLK_WIDGET_OSM,        // "oCSAG" — pending one-shot mods (incl locked)
+    NLK_WIDGET_OSL,        // "OSL n" — one-shot layer while active, else "-"
+    NLK_WIDGET_LOCKS,      // "C N S" — caps/num/scroll lock, each lit
+    NLK_WIDGET_CAPS,       // "CAP" inverted while caps lock on
+    NLK_WIDGET_NUMLOCK,    // "NLK" inverted while num lock on
+    NLK_WIDGET_SCROLLLOCK, // "SLK" inverted while scroll lock on
+    NLK_WIDGET_RGBMAP,     // "MAP" inverted while the per-layer RGB map is on
+    NLK_WIDGET_NUMWORD,    // "NUM" inverted while num word is active
+    NLK_WIDGET_SENTENCE,   // "SC" inverted while sentence case is on
+    NLK_WIDGET_COUNT
+} nlk_widget_t;
+
+// Boot/reseed assignment — reproduces the pre-v3 fixed fallback screen.
+#define NLK_DISPLAY_WIDGET_DEFAULTS                                                            \
+    {                                                                                          \
+        NLK_WIDGET_LAYER, NLK_WIDGET_UPTIME, NLK_WIDGET_RGBMAP, NLK_WIDGET_NUMWORD,            \
+        NLK_WIDGET_SENTENCE, NLK_WIDGET_CAPS, NLK_WIDGET_NUMLOCK, NLK_WIDGET_SCROLLLOCK        \
+    }
+
+// Per-line widget assignment (line = visible index 0-7, top to bottom).
+// Setter clamps out-of-range widget ids to the last valid one.
+void     oled_display_set_widget(uint8_t line, uint8_t widget);
+uint8_t  oled_display_get_widget(uint8_t line);
+// Live table pointer (NLK_DISPLAY_VISIBLE_LINES bytes) for config save/apply.
+uint8_t *oled_display_widget_table(void);
+
 // Store one pushed line (non-printable bytes become spaces; len capped to
 // NLK_DISPLAY_COLS). Refreshes the staleness timer.
 void oled_display_push_line(uint8_t line, const uint8_t *text, uint8_t len);

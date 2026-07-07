@@ -47,8 +47,9 @@
 //      sentence case), leader sequences, OS shortcuts, num word, per-combo
 //      layer masks, per-layer per-key RGB map (8 layers x 23 LEDs x HSV),
 //      display hold time. ~790 bytes used.
+// v2 = appended disp_widgets[8] (per-line fallback-screen widget ids).
 #define EECONFIG_USER_DATA_SIZE 1024
-#define EECONFIG_USER_DATA_VERSION 1
+#define EECONFIG_USER_DATA_VERSION 2
 
 // Per-combo layer gating (Adept parity): compiles the combo_should_trigger()
 // hook into quantum/process_combo.c; masks table edited over HID channel
