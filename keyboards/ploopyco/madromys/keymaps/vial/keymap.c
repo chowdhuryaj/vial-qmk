@@ -355,6 +355,8 @@ typedef struct __attribute__((packed)) {
     uint8_t  am_layer;
     uint16_t nw_timeout;
     uint8_t  nw_layer;
+    // v12 (2026-07-06): autoscroll stop-on-any-key switch.
+    uint8_t  as_stop_on_key;
 } mad_config_t;
 _Static_assert(sizeof(mad_config_t) <= EECONFIG_USER_DATA_SIZE, "mad_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -535,6 +537,7 @@ static void mad_config_set_defaults(void) {
         .as_speed_scale_x100  = AUTOSCROLL_SPEED_SCALE_X100,
         .as_jog_deadzone      = AUTOSCROLL_JOG_DEADZONE,
         .as_jog_range         = AUTOSCROLL_JOG_RANGE,
+        .as_stop_on_key       = AUTOSCROLL_STOP_ON_KEY_DEFAULT ? 1 : 0,
         .am_enabled           = MAD_AUTOMOUSE_ENABLED_DEFAULT ? 1 : 0,
         .am_timeout_ms        = MAD_AUTOMOUSE_TIMEOUT_DEFAULT,
         .am_threshold         = MAD_AUTOMOUSE_THRESHOLD_DEFAULT,
@@ -605,6 +608,7 @@ static void mad_config_apply(void) {
     set_autoscroll_speed_scale(mad_config.as_speed_scale_x100);
     set_autoscroll_jog_deadzone(mad_config.as_jog_deadzone);
     set_autoscroll_jog_range(mad_config.as_jog_range);
+    set_autoscroll_stop_on_key(mad_config.as_stop_on_key != 0);
     mad_automouse_apply();
     wheel_chords_set_enabled(mad_config.wc_enabled != 0);
     wheel_chords_set_step(mad_config.wc_step);
@@ -766,8 +770,9 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 #endif
     // Autoscroll auto-exit: any key press except its own controls stops it
     // (same convention as drag scroll and gestures below). The press still
-    // performs its normal action.
-    if (record->event.pressed && autoscroll_is_active()) {
+    // performs its normal action. Tunable since v12 (0x1A/0x06) — off means
+    // scrolling survives typing.
+    if (record->event.pressed && autoscroll_is_active() && get_autoscroll_stop_on_key()) {
         switch (keycode) {
             case ASC_JOG:
             case ASC_UP:
@@ -1035,9 +1040,10 @@ void keyboard_post_init_user(void) {
 //      + freeze-diagnostic channel (0x1F: pointing-gap watermark, uptime).
 //      (0x1E is num word, Svalboard-only — unhandled here.)
 // v8 = wheel-chords hold delay (0x1C/0x03: ms held before capture engages).
-// v11 = 3 new OS-shortcut keycodes (OS_TABP/OS_TABN/OS_LNCH, indices 34-36);
-//       no channel/value-id changes — the bump just tells Flask the keycodes
-//       exist on this flash.
+// v11 = 3 new OS-shortcut keycodes (OS_TABP/OS_TABN/OS_LNCH, indices 34-36)
+//       + autoscroll stop-on-any-key switch (0x1A/0x06, persisted). (Both
+//       landed 2026-07-06 before any v11 build reached hardware, so they
+//       share the bump.)
 #define MAD_HID_PROTOCOL_VERSION 11
 
 enum mad_hid_channel {
@@ -1183,6 +1189,7 @@ enum mad_hid_autoscroll_value {
     // ±100 while jogging, 0 idle; SET 0 force-stops (rescue switch, same
     // spirit as dragscroll 0x04).
     mad_as_state       = 0x05,
+    mad_as_stop_on_key = 0x06, // bool: any other key press stops autoscroll (v11)
 };
 
 enum mad_hid_automouse_value {
@@ -1386,6 +1393,7 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 case mad_as_speed_scale: mad_hid_write_u16(payload, get_autoscroll_speed_scale()); return true;
                 case mad_as_deadzone: mad_hid_write_u16(payload, get_autoscroll_jog_deadzone()); return true;
                 case mad_as_range: mad_hid_write_u16(payload, get_autoscroll_jog_range()); return true;
+                case mad_as_stop_on_key: mad_hid_write_u16(payload, get_autoscroll_stop_on_key() ? 1 : 0); return true;
                 case mad_as_state:
                     mad_hid_write_i16(payload, autoscroll_is_jogging() ? 100 : autoscroll_get_level());
                     return true;
@@ -1676,6 +1684,10 @@ static bool mad_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                     set_autoscroll_jog_range(mad_hid_read_u16(payload));
                     mad_hid_write_u16(payload, get_autoscroll_jog_range());
                     return true;
+                case mad_as_stop_on_key:
+                    set_autoscroll_stop_on_key(mad_hid_read_u16(payload) != 0);
+                    mad_hid_write_u16(payload, get_autoscroll_stop_on_key() ? 1 : 0);
+                    return true;
                 case mad_as_state:
                     // Rescue switch: any SET stops autoscroll (never persisted).
                     autoscroll_stop();
@@ -1858,6 +1870,7 @@ static bool mad_hid_save(uint8_t channel) {
             mad_config.as_speed_scale_x100 = get_autoscroll_speed_scale();
             mad_config.as_jog_deadzone     = get_autoscroll_jog_deadzone();
             mad_config.as_jog_range        = get_autoscroll_jog_range();
+            mad_config.as_stop_on_key      = get_autoscroll_stop_on_key() ? 1 : 0;
             break;
         case mad_ch_automouse:
             mad_config.am_enabled    = mad_am_enabled ? 1 : 0;

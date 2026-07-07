@@ -18,12 +18,21 @@ LEADER_ENABLE = yes
 # works — unlike the Adept's hand-wired auto-mouse, no plumbing needed).
 OS_DETECTION_ENABLE = yes
 
+# Autoscroll needs a mouse report to ride on. No sensor here — the "custom"
+# driver's weak defaults are all no-ops (quantum/pointing_device.c:95), so
+# pointing_device_task runs each loop with an empty report and autoscroll
+# injects wheel ticks into it. ASC_UP/ASC_DOWN step the speed (bind them to
+# a knob for a scroll-speed dial).
+POINTING_DEVICE_ENABLE = yes
+POINTING_DEVICE_DRIVER = custom
+
 # Shared Flask modules (git submodule — see CLAUDE.md "Shared module submodule")
 SRC += shared/custom_shift_keys.c
 SRC += shared/select_word.c
 SRC += shared/sentence_case.c
 SRC += shared/os_shortcuts.c
 SRC += shared/num_word.c
+SRC += shared/autoscroll.c
 
 # Board-local modules
 SRC += per_layer_rgb.c

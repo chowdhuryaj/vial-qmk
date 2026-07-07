@@ -16,6 +16,7 @@
 #include "shared/sentence_case.h"
 #include "shared/os_shortcuts.h"
 #include "shared/num_word.h"
+#include "shared/autoscroll.h"
 #include "per_layer_rgb.h"
 #include "oled_display.h"
 
@@ -47,6 +48,10 @@ enum nlkb16_keycodes {
     OS_TABP,           // 17 previous browser tab (^⇧Tab, both modes)
     OS_TABN,           // 18 next browser tab (^Tab, both modes)
     OS_LNCH,           // 19 launcher (⌘Space in mac mode; pc: no-op)
+    // v4 additions (2026-07-06): autoscroll, stepped mode only (no ball =
+    // no jog). Bind to a knob's CCW/CW for a scroll-speed dial.
+    ASC_UP,            // 20 autoscroll: step speed up (through zero stops)
+    ASC_DOWN,          // 21 autoscroll: step speed down
 };
 
 /* ---------------------------------------------------------------------------
@@ -228,6 +233,11 @@ typedef struct __attribute__((packed)) {
     // + idle sleep (seconds of no input before the panel switches off).
     uint8_t  disp_widgets[NLK_DISPLAY_VISIBLE_LINES];
     uint16_t disp_sleep_s;
+    // v3: autoscroll (stepped mode; this board has no ball, so no jog
+    // tunables — only invert, speed scale and the stop-on-key switch).
+    uint8_t  as_inverted;
+    uint16_t as_speed_scale_x100;
+    uint8_t  as_stop_on_key;
 } nlk_config_t;
 _Static_assert(sizeof(nlk_config_t) <= EECONFIG_USER_DATA_SIZE, "nlk_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -252,6 +262,9 @@ static void nlk_config_set_defaults(void) {
         .disp_hold_ms     = NLK_DISPLAY_HOLD_MS_DEFAULT,
         .disp_widgets     = NLK_DISPLAY_WIDGET_DEFAULTS,
         .disp_sleep_s     = NLK_DISPLAY_SLEEP_S_DEFAULT,
+        .as_inverted      = AUTOSCROLL_INVERTED_DEFAULT ? 1 : 0,
+        .as_speed_scale_x100 = AUTOSCROLL_SPEED_SCALE_X100,
+        .as_stop_on_key   = AUTOSCROLL_STOP_ON_KEY_DEFAULT ? 1 : 0,
     };
     // csk_table, leader_seqs and rgbmap zero-init = empty slots / all-black
     // map; combo masks default to "all layers allowed".
@@ -284,6 +297,9 @@ static void nlk_config_apply(void) {
     for (uint8_t i = 0; i < NLK_DISPLAY_VISIBLE_LINES; i++) {
         oled_display_set_widget(i, nlk_config.disp_widgets[i]);
     }
+    set_autoscroll_inverted(nlk_config.as_inverted != 0);
+    set_autoscroll_speed_scale(nlk_config.as_speed_scale_x100);
+    set_autoscroll_stop_on_key(nlk_config.as_stop_on_key != 0);
 }
 
 /* ---------------------------------------------------------------------------
@@ -294,6 +310,20 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     // the number layer should drop (shared/num_word.h wiring contract).
     if (keycode != NUMWORD) {
         num_word_on_record(keycode, record);
+    }
+
+    // Autoscroll auto-exit (Adept convention, tunable via 0x1A/0x06): any
+    // key press except its own controls stops it; the press still performs
+    // its normal action.
+    if (record->event.pressed && autoscroll_is_active() && get_autoscroll_stop_on_key()) {
+        switch (keycode) {
+            case ASC_UP:
+            case ASC_DOWN:
+                break; // the controls keep their own behavior
+            default:
+                autoscroll_stop();
+                break;
+        }
     }
 
     // Ported getreuer modules see every key event. custom_shift_keys may
@@ -375,8 +405,21 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case OS_LNCH:
             if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_LAUNCH);
             return false;
+        case ASC_UP:
+            if (record->event.pressed) autoscroll_step(1);
+            return false;
+        case ASC_DOWN:
+            if (record->event.pressed) autoscroll_step(-1);
+            return false;
     }
     return true;
+}
+
+// The custom pointing driver contributes an empty report each pass (weak
+// no-op defaults, quantum/pointing_device.c) — autoscroll injects its wheel
+// ticks here. Jog never engages on this board (nothing feeds report.y).
+report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
+    return autoscroll_apply(mouse_report);
 }
 
 // OS detection result (weak default at quantum/os_detection.c:124). Feeds the
@@ -512,7 +555,10 @@ void keyboard_post_init_user(void) {
 // v3 (2026-07-06): fallback-screen widgets (display 0x09 count RO, 0x20+line
 // get/set, persisted) + idle panel sleep (0x0A seconds, 0 = never) + 3 new
 // OS-shortcut keycodes (OS_TABP/OS_TABN/OS_LNCH, indices 17-19).
-#define NLK_HID_PROTOCOL_VERSION 3
+// v4 (2026-07-06): autoscroll channel 0x1A (stepped mode only — 0x01 invert,
+// 0x02 speed scale, 0x05 live level/force-stop, 0x06 stop-on-key; no jog
+// ids, this board has no ball) + ASC_UP/ASC_DOWN keycodes (indices 20-21).
+#define NLK_HID_PROTOCOL_VERSION 4
 
 enum nlk_hid_channel {
     nlk_ch_meta        = 0x00, // 0x01 protocol version RO; 0x02 active layer RO
@@ -520,6 +566,7 @@ enum nlk_hid_channel {
     nlk_ch_selword     = 0x17, // select word
     nlk_ch_sentence    = 0x18, // sentence case
     nlk_ch_leader      = 0x19, // leader sequences
+    nlk_ch_autoscroll  = 0x1A, // autoscroll (stepped only — no ball, no jog; v4)
     nlk_ch_os          = 0x1D, // OS-aware shortcuts
     nlk_ch_numword     = 0x1E, // num word
     nlk_ch_combolayers = 0x20, // per-combo layer masks
@@ -550,6 +597,16 @@ enum nlk_hid_sentence_value {
 enum nlk_hid_leader_value {
     // Slots: 0x10 + seq*8 + pos; pos 0..4 = keys, 5 = output keycode.
     nlk_leader_slot_base = 0x10,
+};
+
+enum nlk_hid_autoscroll_value {
+    // Adept 0x1A value-id parity; 0x03/0x04 (jog deadzone/range) are NOT
+    // served — this board has no ball, jog can never engage.
+    nlk_as_inverted    = 0x01,
+    nlk_as_speed_scale = 0x02, // x100; 100 = Ben White's interval table as-is
+    // Live: GET = signed stepped level (-9..9), 0 idle; SET force-stops.
+    nlk_as_state       = 0x05,
+    nlk_as_stop_on_key = 0x06, // bool: any other key press stops autoscroll
 };
 
 enum nlk_hid_os_value {
@@ -672,6 +729,15 @@ static bool nlk_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 return true;
             }
             return false;
+
+        case nlk_ch_autoscroll:
+            switch (value_id) {
+                case nlk_as_inverted: nlk_hid_write_u16(payload, get_autoscroll_inverted() ? 1 : 0); return true;
+                case nlk_as_speed_scale: nlk_hid_write_u16(payload, get_autoscroll_speed_scale()); return true;
+                case nlk_as_state: nlk_hid_write_u16(payload, (uint16_t)(int16_t)autoscroll_get_level()); return true;
+                case nlk_as_stop_on_key: nlk_hid_write_u16(payload, get_autoscroll_stop_on_key() ? 1 : 0); return true;
+                default: return false;
+            }
 
         case nlk_ch_os:
             switch (value_id) {
@@ -808,6 +874,25 @@ static bool nlk_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
             return false;
 
+        case nlk_ch_autoscroll:
+            if (value_id == nlk_as_inverted) {
+                set_autoscroll_inverted(nlk_hid_read_u16(payload) != 0);
+                return true;
+            }
+            if (value_id == nlk_as_speed_scale) {
+                set_autoscroll_speed_scale(nlk_hid_read_u16(payload)); // setter clamps
+                return true;
+            }
+            if (value_id == nlk_as_state) {
+                autoscroll_stop(); // rescue switch, never persisted
+                return true;
+            }
+            if (value_id == nlk_as_stop_on_key) {
+                set_autoscroll_stop_on_key(nlk_hid_read_u16(payload) != 0);
+                return true;
+            }
+            return false;
+
         case nlk_ch_os:
             if (value_id == nlk_os_follow) {
                 os_shortcuts_set_follow(nlk_hid_read_u16(payload) != 0);
@@ -937,6 +1022,11 @@ static bool nlk_hid_save(uint8_t channel) {
             break;
         case nlk_ch_leader:
             memcpy(nlk_config.leader_seqs, leader_seqs, sizeof(nlk_config.leader_seqs));
+            break;
+        case nlk_ch_autoscroll:
+            nlk_config.as_inverted         = get_autoscroll_inverted() ? 1 : 0;
+            nlk_config.as_speed_scale_x100 = get_autoscroll_speed_scale();
+            nlk_config.as_stop_on_key      = get_autoscroll_stop_on_key() ? 1 : 0;
             break;
         case nlk_ch_os:
             nlk_config.os_follow = os_shortcuts_get_follow() ? 1 : 0;

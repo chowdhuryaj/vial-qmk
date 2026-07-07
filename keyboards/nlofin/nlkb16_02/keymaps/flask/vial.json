@@ -162,6 +162,16 @@
             "name": "OS Launch",
             "title": "Launcher: Cmd-Space (Spotlight) in mac mode; does nothing in pc mode for now",
             "shortName": "OSLch"
+        },
+        {
+            "name": "Autoscroll Up",
+            "title": "Step autoscroll speed up (through zero stops) — bind to a knob for a scroll-speed dial",
+            "shortName": "AS+"
+        },
+        {
+            "name": "Autoscroll Down",
+            "title": "Step autoscroll speed down (through zero stops)",
+            "shortName": "AS−"
         }
     ]
 }

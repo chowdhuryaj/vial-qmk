@@ -65,8 +65,9 @@
 // v11 = appended raw DPI CPI (u16, 0 = legacy table), wiggle action/target
 //       set/source (3 bytes), auto-mouse target layer (1), num word timeout
 //       + layer (3). SIZE unchanged (768 has room).
+// v12 = appended autoscroll stop-on-any-key switch (+1 byte). SIZE unchanged.
 #define EECONFIG_USER_DATA_SIZE 768
-#define EECONFIG_USER_DATA_VERSION 11
+#define EECONFIG_USER_DATA_VERSION 12
 
 // Per-combo layer gating (ZMK-style "layers = [...]"): compiles the
 // combo_should_trigger() hook into quantum/process_combo.c; the
@@ -317,3 +318,4 @@
 #define AUTOSCROLL_JOG_DEADZONE 15
 #define AUTOSCROLL_JOG_RANGE 300
 #define AUTOSCROLL_INVERTED_DEFAULT false
+#define AUTOSCROLL_STOP_ON_KEY_DEFAULT true

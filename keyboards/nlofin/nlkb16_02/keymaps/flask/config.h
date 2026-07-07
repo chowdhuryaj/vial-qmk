@@ -49,8 +49,10 @@
 //      display hold time. ~790 bytes used.
 // v2 = appended disp_widgets[8] (per-line fallback-screen widget ids) +
 //      disp_sleep_s (idle seconds before the panel switches off).
+// v3 = appended autoscroll (+4 bytes: inverted, speed scale x100 u16,
+//      stop-on-key). SIZE unchanged.
 #define EECONFIG_USER_DATA_SIZE 1024
-#define EECONFIG_USER_DATA_VERSION 2
+#define EECONFIG_USER_DATA_VERSION 3
 
 // Per-combo layer gating (Adept parity): compiles the combo_should_trigger()
 // hook into quantum/process_combo.c; masks table edited over HID channel
@@ -152,6 +154,16 @@
 #define NUM_WORD_LAYER_DEFAULT 1
 #define NUM_WORD_IDLE_TIMEOUT_DEFAULT 5000
 #define NUM_WORD_IDLE_TIMEOUT_MAX 30000
+
+/* ---------------------------------------------------------------------------
+ * Autoscroll (shared/autoscroll) — stepped mode only: ASC_UP/ASC_DOWN move a
+ * signed speed level (bind to a knob = scroll-speed dial). No ball → jog
+ * mode can never engage; jog defines stay at module defaults. Rides a
+ * "custom" pointing driver whose weak defaults are no-ops (rules.mk).
+ * ------------------------------------------------------------------------- */
+#define AUTOSCROLL_SPEED_SCALE_X100 100
+#define AUTOSCROLL_INVERTED_DEFAULT false
+#define AUTOSCROLL_STOP_ON_KEY_DEFAULT true
 
 /* ---------------------------------------------------------------------------
  * Leader key (QMK core feature; sequences are dynamic, Adept pattern)
