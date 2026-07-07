@@ -376,23 +376,29 @@ values read off the live device; stock firmware backed up at
 
 **Keymap** (`keymaps/flask/`): Vial (8 layers, 32 tap dances/combos/key
 overrides) + VialRGB (stock protocol untouched) + Flask raw HID protocol
-(**v4**; EEPROM datablock v3) with channels: `0x00` meta · `0x16` custom shift
-keys · `0x17` select word · `0x18` sentence case · `0x19` leader · `0x1A`
-autoscroll (**v4, 2026-07-06** — stepped mode only, no ball/no jog ids;
-rides `POINTING_DEVICE_DRIVER = custom` whose weak defaults are no-ops, so
-`pointing_device_task` runs an empty report and autoscroll injects wheel
-ticks; `ASC_UP`/`ASC_DOWN` on a knob = scroll-speed dial; `0x06` = the
-stop-on-any-key switch, shared-module knob) · `0x1D` OS
+(**v5**; EEPROM datablock v4) with channels: `0x00` meta · `0x16` custom shift
+keys · `0x17` select word · `0x18` sentence case · `0x19` leader (**v5:
+`0x01` = live timeout ms** via a weak-getter patch in quantum/leader.c) ·
+`0x1A` autoscroll (**v4, 2026-07-06** — stepped mode only, no ball/no jog
+ids; rides `POINTING_DEVICE_DRIVER = custom`. **GOTCHA: the weak custom
+driver init returns FALSE = "init failed" and pointing_device_task bails —
+a strong `pointing_device_driver_init` returning true is the ONE required
+stub**, found dead-on-hardware in v4; `ASC_UP`/`ASC_DOWN` on a knob =
+scroll-speed dial; `0x06` = the stop-on-any-key switch) · `0x1D` OS
 shortcuts · `0x1E` num word · `0x20` per-combo layer masks · `0x21` per-layer
 per-key RGB map (8 layers × 23 LEDs × HSV, `RGBMAP_TOG`) · `0x22` OLED
 (push lines `0x10`, release `0x11`, hold `0x01`, diagnostics `0x02-0x06`,
 **raw panel cmd inject `0x07` + full re-init `0x08`** — the display-debug
-probes, v2; **v3 (2026-07-06): fallback-screen widgets** — one assignable
-widget per visible line (`0x09` count RO, `0x20`+line get/set; ids in
-`nlk_widget_t`, oled_display.h) + **idle panel sleep** `0x0A` (seconds, 0 =
-never, default 120 — see burn-in fact below)). Shares the `qmk-flask-modules`
-submodule (getreuer set + autoscroll). 22 custom keycodes;
-THE keycode rule applies (enum ↔ `vial.json`).
+probes, v2; **v3: fallback-screen widgets** (`0x09` count RO, `0x20`+line;
+ids in `nlk_widget_t`) + **idle panel sleep** `0x0A` (seconds, 0 = never,
+default 120 — see burn-in fact below); **v5 (2026-07-07): 4 double-height
+lines** — own glcdfont copy pixel-doubled vertically, per-line render cache;
+push/widget ids are big lines 0-3, Custom-text widget id 13 with per-line
+text at `0x30`+line (payload-addressed), transient overlays (volume / RGB
+brightness / autoscroll level, live) with duration `0x0B` (default 2 s, 0 =
+off). The display-saga RX/TX debug key blinks are REMOVED (v5)). Shares the
+`qmk-flask-modules` submodule (getreuer set + autoscroll). 22 custom
+keycodes; THE keycode rule applies (enum ↔ `vial.json`).
 
 **Hard-won hardware facts — read before touching the display or RGB:**
 - **The glass is a 64×32 window into the SSD1306's 128×64 RAM** (SEG columns
