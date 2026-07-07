@@ -257,9 +257,11 @@ index re-arms it), auto-mouse target layer on `0x1B`, wiggle
 action/target/source knobs on `0x12`, 4 more OS shortcuts
 (OS_APPSW/OS_SELALL/OS_NEWTAB/OS_CLOSE) + NUMWORD = keycodes 29-33 ·
 **v11 (2026-07-06):** OS_TABP/OS_TABN/OS_LNCH = keycodes 34-36 (prev/next
-browser tab ^⇧Tab/^Tab both modes; Launch ⌘Space mac / no-op pc — no
-channel changes, bump = "these keycodes exist on this flash").
-Protocol currently **11**; EEPROM datablock VERSION **11**.
+browser tab ^⇧Tab/^Tab both modes; Launch ⌘Space mac / no-op pc) +
+autoscroll stop-on-any-key switch (`0x1A/0x06`, persisted; the
+process_record auto-exit hook gates on it — both landed before any v11
+build reached hardware, so they share the bump).
+Protocol currently **11**; EEPROM datablock VERSION **12**.
 Gestures are **8-direction** since v3 (`PD_GESTURES_NUM_DIRECTIONS 8`,
 internal order E SE S SW W NW N NE); an empty diagonal slot falls back to
 the nearest cardinal by dominant axis, so 4-way sets keep their old feel.
@@ -374,8 +376,13 @@ values read off the live device; stock firmware backed up at
 
 **Keymap** (`keymaps/flask/`): Vial (8 layers, 32 tap dances/combos/key
 overrides) + VialRGB (stock protocol untouched) + Flask raw HID protocol
-(**v3**; EEPROM datablock v2) with channels: `0x00` meta · `0x16` custom shift
-keys · `0x17` select word · `0x18` sentence case · `0x19` leader · `0x1D` OS
+(**v4**; EEPROM datablock v3) with channels: `0x00` meta · `0x16` custom shift
+keys · `0x17` select word · `0x18` sentence case · `0x19` leader · `0x1A`
+autoscroll (**v4, 2026-07-06** — stepped mode only, no ball/no jog ids;
+rides `POINTING_DEVICE_DRIVER = custom` whose weak defaults are no-ops, so
+`pointing_device_task` runs an empty report and autoscroll injects wheel
+ticks; `ASC_UP`/`ASC_DOWN` on a knob = scroll-speed dial; `0x06` = the
+stop-on-any-key switch, shared-module knob) · `0x1D` OS
 shortcuts · `0x1E` num word · `0x20` per-combo layer masks · `0x21` per-layer
 per-key RGB map (8 layers × 23 LEDs × HSV, `RGBMAP_TOG`) · `0x22` OLED
 (push lines `0x10`, release `0x11`, hold `0x01`, diagnostics `0x02-0x06`,
@@ -384,7 +391,7 @@ probes, v2; **v3 (2026-07-06): fallback-screen widgets** — one assignable
 widget per visible line (`0x09` count RO, `0x20`+line get/set; ids in
 `nlk_widget_t`, oled_display.h) + **idle panel sleep** `0x0A` (seconds, 0 =
 never, default 120 — see burn-in fact below)). Shares the `qmk-flask-modules`
-submodule (getreuer set only — no pointing device). 20 custom keycodes;
+submodule (getreuer set + autoscroll). 22 custom keycodes;
 THE keycode rule applies (enum ↔ `vial.json`).
 
 **Hard-won hardware facts — read before touching the display or RGB:**
