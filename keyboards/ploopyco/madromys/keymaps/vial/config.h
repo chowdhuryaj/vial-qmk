@@ -102,9 +102,9 @@
 #define MADROMYS_DPI_CPI_STEP 50
 
 // Num word (v10, shared module): number layer with caps-word-style hold +
-// idle timeout. Layer default = _MOUSE+? — spare layer 4 (blank by default;
-// bind digits there in Flask, or point num word at any layer 0-7).
-#define NUM_WORD_LAYER_DEFAULT 4
+// idle timeout. Layer default = 5 — the user's "Number" layer (digit tap
+// dances, baked 2026-07-05); retarget to any layer 0-7 in Flask (0x1E/0x02).
+#define NUM_WORD_LAYER_DEFAULT 5
 #define NUM_WORD_IDLE_TIMEOUT_DEFAULT 5000
 #define NUM_WORD_IDLE_TIMEOUT_MAX 30000
 #define AUTO_MOUSE_TIME MAD_AUTOMOUSE_TIMEOUT_DEFAULT

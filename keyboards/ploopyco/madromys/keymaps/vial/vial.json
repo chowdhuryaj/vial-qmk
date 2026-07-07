@@ -177,6 +177,21 @@
             "name": "Num Word",
             "shortName": "NumWd",
             "title": "Number layer stays on while typing digits; drops on the first other key or after the idle timeout (Typing tab)"
+        },
+        {
+            "name": "OS Prev Tab",
+            "shortName": "OSTbP",
+            "title": "Previous browser tab: ^⇧Tab (same in mac and pc modes)"
+        },
+        {
+            "name": "OS Next Tab",
+            "shortName": "OSTbN",
+            "title": "Next browser tab: ^Tab (same in mac and pc modes)"
+        },
+        {
+            "name": "OS Launch",
+            "shortName": "OSLch",
+            "title": "Launcher: ⌘Space (Spotlight) in mac mode; does nothing in pc mode for now"
         }
     ],
     "layouts": {

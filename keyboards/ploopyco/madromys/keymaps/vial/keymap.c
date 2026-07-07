@@ -98,6 +98,10 @@ enum madromys_keycodes {
     OS_NTAB,               // 31 new tab (⌘T / ^T)
     OS_CLOSE,              // 32 close window/tab (⌘W / ^W)
     NUMWORD,               // 33 num word: layer stays on while typing numbers
+    // v11 additions (2026-07-06)
+    OS_TABP,               // 34 previous browser tab (^⇧Tab, both modes)
+    OS_TABN,               // 35 next browser tab (^Tab, both modes)
+    OS_LNCH,               // 36 launcher (⌘Space in mac mode; pc: no-op)
 };
 
 /* ---------------------------------------------------------------------------
@@ -114,62 +118,41 @@ enum madromys_keycodes {
  * layer). Don't hand-edit a baked block; edit the layout in Flask/Vial and
  * re-bake. The LAYOUT() form below survives only until the first bake. */
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
-    /* Base: drag-scroll toggle + mouse buttons. Three positions are simple
-     * layer-tap mod-taps (tap = the mouse button, hold = a layer); the rest are
-     * plain single presses:
-     *   Top Left Left    DRG_TOG              drag-scroll toggle
-     *   Top Left         LT(_SCRL,  KC_BTN4)  tap BTN4 / hold Scroll layer
-     *   Top Right        LT(_FN,    KC_BTN5)  tap BTN5 / hold Function layer
-     *   Top Right Right  LT(_MOUSE, KC_BTN2)  tap BTN2 / hold Mouse layer
-     *   Bottom Left      KC_BTN1              left click
-     *   Bottom Right     KC_BTN3              middle click */
-    [_BASE] = LAYOUT(
-        DRG_TOG, LT(_SCRL, KC_BTN4), LT(_FN, KC_BTN5), LT(_MOUSE, KC_BTN2), KC_BTN1, KC_BTN3
-    ),
-
-    /* Mouse: momentary layer, entered by holding LT(_MOUSE, KC_BTN2) on _BASE's
-     * Top Right Right. Top Left Left carries DRG_TOG here too — the SAME physical
-     * key as _BASE's drag-scroll toggle — so the toggle stays reachable without
-     * leaving the mouse layer. Middle click (BTN3) on Top Right Right; DPI down/up
-     * fill the middle two slots. */
-    [_MOUSE] = LAYOUT(
-        DRG_TOG, DPI_DOWN, DPI_UP, KC_BTN3, KC_BTN1, KC_BTN2
-    ),
-
-    /* Scroll: wheel up/down plus a drag-scroll toggle fill the top slots;
-     * clicks keep the same BTN1/BTN2/BTN3 positions as _BASE/_MOUSE. */
-    [_SCRL] = LAYOUT(
-        KC_BTN3, MS_WHLU, MS_WHLD, DRG_TOG, KC_BTN1, KC_BTN2
-    ),
-
-    /* Function: DPI cycle, a Vial macro, debug-console toggle, and bootloader.
-     * MC_0 (Top Right Right) is Vial macro M0 — its sequence is authored in the
-     * Vial GUI's Macros tab, not here. DB_TOGG (Bottom Left) is QMK's built-in
-     * debug-console toggle — flip it on before a `qmk console` tuning session
-     * (see POINTING_DEVICE_DEBUG in config.h), off after, so the console isn't
-     * spammed during normal use. Top Left Left and Top Left are both free
-     * (KC_NO) — bind anything in Vial. */
-    [_FN] = LAYOUT(
-        KC_NO, KC_NO, DPI_CONFIG, MC_0, DB_TOGG, QK_BOOT
-    ),
-
-    /* ----- Spare layers (4-7) ----------------------------------------------
-     * Blank placeholders so Vial exposes 8 dynamic layers for future GUI-side
-     * use. All transparent (KC_TRNS) rather than KC_NO so an accidental
-     * MO()/TO() into one falls through to _BASE instead of killing every
-     * button. Nothing in firmware references these layers. */
-    [4] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [5] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [6] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
-    [7] = LAYOUT(
-        KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS
-    ),
+    /* Baked by Flask (2026-07-05) from the live keymap of Ploopy Adept Trackball.
+       Raw matrix form, row-major [row][col] hex keycodes. Re-bake from
+       the Build tab instead of hand-editing. */
+    /* ===== 0: Base ===== */
+    [0] = {
+        { 0x00D1, 0x5700, 0x00D4, 0x00D5, 0x41D2, 0x5701 },
+    },
+    /* ===== 1: Editing ===== */
+    [1] = {
+        { 0x7E11, 0x7E0F, 0x7E10, 0x7E12, 0x0001, 0x7E21 },
+    },
+    /* ===== 2: Scroll ===== */
+    [2] = {
+        { 0x7E09, 0x7E07, 0x7E08, 0x7E0B, 0x7E15, 0x7E0A },
+    },
+    /* ===== 3: Fn ===== */
+    [3] = {
+        { 0x7C02, 0x0000, 0x0000, 0x7E00, 0x7700, 0x7C00 },
+    },
+    /* ===== 4: Rads Nav ===== */
+    [4] = {
+        { 0x0015, 0x0040, 0x0068, 0x0069, 0x0041, 0x0043 },
+    },
+    /* ===== 5: Number ===== */
+    [5] = {
+        { 0x5706, 0x5702, 0x5703, 0x5704, 0x5705, 0x0001 },
+    },
+    /* ===== 6: Shortcuts ===== */
+    [6] = {
+        { 0x7E1D, 0x5707, 0x7E1B, 0x7E1C, 0x0001, 0x7E1E },
+    },
+    /* ===== 7: Macros ===== */
+    [7] = {
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
+    },
 };
 /* FLASK-BAKE-END */
 // clang-format on
@@ -931,6 +914,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case NUMWORD:
             if (record->event.pressed) num_word_toggle();
             return false;
+        case OS_TABP:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_PREV_TAB);
+            return false;
+        case OS_TABN:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_NEXT_TAB);
+            return false;
+        case OS_LNCH:
+            if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_LAUNCH);
+            return false;
     }
     return true;
 }
@@ -1043,7 +1035,10 @@ void keyboard_post_init_user(void) {
 //      + freeze-diagnostic channel (0x1F: pointing-gap watermark, uptime).
 //      (0x1E is num word, Svalboard-only — unhandled here.)
 // v8 = wheel-chords hold delay (0x1C/0x03: ms held before capture engages).
-#define MAD_HID_PROTOCOL_VERSION 10
+// v11 = 3 new OS-shortcut keycodes (OS_TABP/OS_TABN/OS_LNCH, indices 34-36);
+//       no channel/value-id changes — the bump just tells Flask the keycodes
+//       exist on this flash.
+#define MAD_HID_PROTOCOL_VERSION 11
 
 enum mad_hid_channel {
     mad_ch_meta       = 0x00, // 0x01 protocol version RO; 0x02 active layer RO (v10)
