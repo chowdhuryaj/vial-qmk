@@ -71,6 +71,13 @@ bool leader_sequence_timed_out(void);
 void leader_reset_timer(void);
 
 /**
+ * Effective leader timeout in ms. Weak; defaults to LEADER_TIMEOUT. A keymap
+ * may define it strongly to make the timeout a runtime tunable (Flask fork
+ * addition, 2026-07-07).
+ */
+uint16_t leader_timeout_get(void);
+
+/**
  * Check the sequence buffer for the given keycode.
  *
  * \param kc The keycode to check.

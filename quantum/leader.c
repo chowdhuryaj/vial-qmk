@@ -11,6 +11,13 @@
 #    define LEADER_TIMEOUT 300
 #endif
 
+// Flask fork addition (2026-07-07): timeout readable through a weak getter
+// so keymaps can make it a live tunable (NLKB16 serves it over HID 0x19/0x01
+// and persists it). Default preserves the compile-time behavior exactly.
+__attribute__((weak)) uint16_t leader_timeout_get(void) {
+    return LEADER_TIMEOUT;
+}
+
 // Leader key stuff
 bool     leading              = false;
 uint16_t leader_time          = 0;
@@ -73,9 +80,9 @@ bool leader_sequence_add(uint16_t keycode) {
 
 bool leader_sequence_timed_out(void) {
 #if defined(LEADER_NO_TIMEOUT)
-    return leader_sequence_size > 0 && timer_elapsed(leader_time) > LEADER_TIMEOUT;
+    return leader_sequence_size > 0 && timer_elapsed(leader_time) > leader_timeout_get();
 #else
-    return timer_elapsed(leader_time) > LEADER_TIMEOUT;
+    return timer_elapsed(leader_time) > leader_timeout_get();
 #endif
 }
 

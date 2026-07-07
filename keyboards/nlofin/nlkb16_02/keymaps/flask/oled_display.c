@@ -94,26 +94,21 @@ uint16_t oled_display_i2c_recovers(void) {
 
 // Written from the raw-HID handler (USB task context), read from the main
 // loop's oled_task — volatile so LTO can't cache the flags across contexts.
-static char              push_buf[NLK_DISPLAY_LINES][NLK_DISPLAY_COLS + 1];
+static char              push_buf[NLK_DISPLAY_BIG_LINES][NLK_DISPLAY_BIG_COLS + 1];
 static volatile bool     pushed    = false;
 static volatile uint32_t last_push = 0;
 static volatile uint16_t hold_ms   = NLK_DISPLAY_HOLD_MS_DEFAULT;
 
 void oled_display_push_line(uint8_t line, const uint8_t *text, uint8_t len) {
-    if (line >= NLK_DISPLAY_LINES) return;
-    if (len > NLK_DISPLAY_COLS) len = NLK_DISPLAY_COLS;
-    // Stored space-padded to the full width. render_pushed must NOT call
-    // oled_advance_page: a full-width write already wraps the cursor to the
-    // next line, so advance_page would blank the FOLLOWING line, which the
-    // next pass then rewrites — every block ping-pongs dirty and the driver
-    // re-transmits nonstop (hardware-measured 218 tx/s vs 2 tx/s idle).
-    for (uint8_t i = 0; i < NLK_DISPLAY_COLS; i++) {
+    if (line >= NLK_DISPLAY_BIG_LINES) return;
+    if (len > NLK_DISPLAY_BIG_COLS) len = NLK_DISPLAY_BIG_COLS;
+    for (uint8_t i = 0; i < NLK_DISPLAY_BIG_COLS; i++) {
         char c            = (i < len) ? (char)text[i] : ' ';
         push_buf[line][i] = (c >= 32 && c < 127) ? c : ' ';
     }
-    push_buf[line][NLK_DISPLAY_COLS] = '\0';
-    pushed                           = true;
-    last_push                        = timer_read32();
+    push_buf[line][NLK_DISPLAY_BIG_COLS] = '\0';
+    pushed                               = true;
+    last_push                            = timer_read32();
 }
 
 void oled_display_release(void) {
@@ -151,128 +146,275 @@ uint16_t oled_display_get_sleep_s(void) {
     return sleep_s;
 }
 
-static void render_pushed(void) {
-    for (uint8_t l = 0; l < NLK_DISPLAY_LINES; l++) {
-        oled_set_cursor(0, l);
-        oled_write(push_buf[l], false);
-        // Clear the remainder ONLY for short lines (never-pushed slots are
-        // empty strings). A full-width line has already wrapped the cursor —
-        // advance_page there would blank the NEXT line (see push_line).
-        if (strlen(push_buf[l]) < NLK_DISPLAY_COLS) {
-            oled_advance_page(true);
+
+/* ---------------------------------------------------------------------------
+ * Big-line renderer (v5): 4 lines × 5 chars, glyphs pixel-doubled vertically
+ * (6×8 font → 6×16). We include our own copy of the oled font — the driver's
+ * `font[]` is static to oled_driver.c (costs ~1.6 KB flash, fine on 128K).
+ * Coordinates are LOGICAL post-rotation: the glass window is x 0..31,
+ * y 32..95 (visible lines 4-11 of the 16-line canvas) — big line i sits at
+ * y = 32 + i*16, column c at x = c*6.
+ *
+ * oled_write_pixel only dirties changed pixels, but the per-pixel loop
+ * itself costs ~0.25 ms/line — a per-line content cache skips unchanged
+ * lines so a steady screen costs nothing.
+ * ------------------------------------------------------------------------- */
+#include "glcdfont.c" // static const unsigned char font[] PROGMEM, 6 B/char
+
+static char    line_cache[NLK_DISPLAY_BIG_LINES][NLK_DISPLAY_BIG_COLS];
+static uint8_t mask_cache[NLK_DISPLAY_BIG_LINES];
+static bool    cache_valid = false;
+
+static void draw_big_char(uint8_t line, uint8_t col, char c, bool invert) {
+    if (c < 32 || c > 126) c = ' ';
+    const uint8_t *glyph = &font[(uint16_t)c * 6];
+    uint8_t        x0    = col * 6;
+    uint8_t        y0    = NLK_DISPLAY_VISIBLE_FIRST * 8 + line * 16;
+    for (uint8_t gx = 0; gx < 6; gx++) {
+        uint8_t bits = pgm_read_byte(glyph + gx);
+        for (uint8_t gy = 0; gy < 8; gy++) {
+            bool on = ((bits >> gy) & 1) != 0;
+            if (invert) on = !on;
+            oled_write_pixel(x0 + gx, y0 + gy * 2, on);
+            oled_write_pixel(x0 + gx, y0 + gy * 2 + 1, on);
         }
     }
 }
 
-/* Fallback-screen widgets (v3): one per visible line, assigned over HID and
- * persisted by the keymap. Table initializer reproduces the pre-v3 screen. */
-static uint8_t widgets[NLK_DISPLAY_VISIBLE_LINES] = NLK_DISPLAY_WIDGET_DEFAULTS;
+// text = up to 5 chars (shorter is space-padded); invert_mask bit c inverts
+// column c's glyph.
+static void render_big_line(uint8_t line, const char *text, uint8_t invert_mask) {
+    char padded[NLK_DISPLAY_BIG_COLS];
+    bool ended = false;
+    for (uint8_t c = 0; c < NLK_DISPLAY_BIG_COLS; c++) {
+        char ch = ended ? ' ' : text[c];
+        if (ch == '\0') {
+            ended = true;
+            ch    = ' ';
+        }
+        padded[c] = ch;
+    }
+    if (cache_valid && mask_cache[line] == invert_mask && memcmp(line_cache[line], padded, sizeof(padded)) == 0) {
+        return;
+    }
+    memcpy(line_cache[line], padded, sizeof(padded));
+    mask_cache[line] = invert_mask;
+    for (uint8_t c = 0; c < NLK_DISPLAY_BIG_COLS; c++) {
+        draw_big_char(line, c, padded[c], (invert_mask >> c) & 1);
+    }
+}
+
+/* Fallback-screen widgets: one per big line, assigned over HID and persisted
+ * by the keymap. */
+static uint8_t widgets[NLK_DISPLAY_BIG_LINES] = NLK_DISPLAY_WIDGET_DEFAULTS;
+static char    custom_buf[NLK_DISPLAY_BIG_LINES][NLK_DISPLAY_BIG_COLS + 1];
 
 void oled_display_set_widget(uint8_t line, uint8_t widget) {
-    if (line >= NLK_DISPLAY_VISIBLE_LINES) return;
+    if (line >= NLK_DISPLAY_BIG_LINES) return;
     if (widget >= NLK_WIDGET_COUNT) widget = NLK_WIDGET_COUNT - 1;
     widgets[line] = widget;
 }
 
 uint8_t oled_display_get_widget(uint8_t line) {
-    return (line < NLK_DISPLAY_VISIBLE_LINES) ? widgets[line] : NLK_WIDGET_BLANK;
+    return (line < NLK_DISPLAY_BIG_LINES) ? widgets[line] : NLK_WIDGET_BLANK;
 }
 
 uint8_t *oled_display_widget_table(void) {
     return widgets;
 }
 
-// Draws one widget at the current cursor, ≤5 chars, then clears the rest of
-// the line. Widgets never reach canvas column 10, so the advance_page can't
-// hit the full-width wrap trap render_pushed dodges.
-static void render_widget_line(uint8_t widget) {
+void oled_display_set_custom(uint8_t line, const uint8_t *text, uint8_t len) {
+    if (line >= NLK_DISPLAY_BIG_LINES) return;
+    if (len > NLK_DISPLAY_BIG_COLS) len = NLK_DISPLAY_BIG_COLS;
+    for (uint8_t i = 0; i < NLK_DISPLAY_BIG_COLS; i++) {
+        char c             = (i < len) ? (char)text[i] : ' ';
+        custom_buf[line][i] = (c >= 32 && c < 127) ? c : ' ';
+    }
+    custom_buf[line][NLK_DISPLAY_BIG_COLS] = '\0';
+}
+
+const char *oled_display_get_custom(uint8_t line) {
+    return (line < NLK_DISPLAY_BIG_LINES) ? custom_buf[line] : "";
+}
+
+// Fills text[5] (space-padded, no terminator) + per-char invert mask.
+static void widget_content(uint8_t line, uint8_t widget, char *t, uint8_t *mask) {
+    memset(t, ' ', NLK_DISPLAY_BIG_COLS);
+    *mask = 0;
     switch (widget) {
         case NLK_WIDGET_LAYER:
-            oled_write_P(PSTR("LYR "), false);
-            oled_write_char('0' + get_highest_layer(layer_state | default_layer_state), true);
+            memcpy(t, "LYR ", 4);
+            t[4]  = '0' + get_highest_layer(layer_state | default_layer_state);
+            *mask = 1 << 4;
             break;
         case NLK_WIDGET_UPTIME: {
             uint32_t secs = timer_read32() / 1000;
-            oled_write_P(PSTR("T "), false);
-            oled_write_char('0' + (secs / 100) % 10, false);
-            oled_write_char('0' + (secs / 10) % 10, false);
-            oled_write_char('0' + secs % 10, false);
+            t[0]          = 'T';
+            t[2]          = '0' + (secs / 100) % 10;
+            t[3]          = '0' + (secs / 10) % 10;
+            t[4]          = '0' + secs % 10;
             break;
         }
         case NLK_WIDGET_MODS: {
             uint8_t mods = get_mods() | get_weak_mods();
-            oled_write_char('C', mods & MOD_MASK_CTRL);
-            oled_write_char('S', mods & MOD_MASK_SHIFT);
-            oled_write_char('A', mods & MOD_MASK_ALT);
-            oled_write_char('G', mods & MOD_MASK_GUI);
+            memcpy(t, "CSAG", 4);
+            if (mods & MOD_MASK_CTRL) *mask |= 1 << 0;
+            if (mods & MOD_MASK_SHIFT) *mask |= 1 << 1;
+            if (mods & MOD_MASK_ALT) *mask |= 1 << 2;
+            if (mods & MOD_MASK_GUI) *mask |= 1 << 3;
             break;
         }
         case NLK_WIDGET_OSM: {
             uint8_t mods = get_oneshot_mods() | get_oneshot_locked_mods();
-            oled_write_char('o', false);
-            oled_write_char('C', mods & MOD_MASK_CTRL);
-            oled_write_char('S', mods & MOD_MASK_SHIFT);
-            oled_write_char('A', mods & MOD_MASK_ALT);
-            oled_write_char('G', mods & MOD_MASK_GUI);
+            memcpy(t, "oCSAG", 5);
+            if (mods & MOD_MASK_CTRL) *mask |= 1 << 1;
+            if (mods & MOD_MASK_SHIFT) *mask |= 1 << 2;
+            if (mods & MOD_MASK_ALT) *mask |= 1 << 3;
+            if (mods & MOD_MASK_GUI) *mask |= 1 << 4;
             break;
         }
         case NLK_WIDGET_OSL: {
             bool active = is_oneshot_layer_active();
-            oled_write_P(PSTR("OSL "), false);
-            oled_write_char(active ? (char)('0' + get_oneshot_layer()) : '-', active);
+            memcpy(t, "OSL ", 4);
+            t[4] = active ? (char)('0' + get_oneshot_layer()) : '-';
+            if (active) *mask = 1 << 4;
             break;
         }
         case NLK_WIDGET_LOCKS: {
             led_t leds = host_keyboard_led_state();
-            oled_write_char('C', leds.caps_lock);
-            oled_write_char(' ', false);
-            oled_write_char('N', leds.num_lock);
-            oled_write_char(' ', false);
-            oled_write_char('S', leds.scroll_lock);
+            t[0]       = 'C';
+            t[2]       = 'N';
+            t[4]       = 'S';
+            if (leds.caps_lock) *mask |= 1 << 0;
+            if (leds.num_lock) *mask |= 1 << 2;
+            if (leds.scroll_lock) *mask |= 1 << 4;
             break;
         }
         case NLK_WIDGET_CAPS:
-            oled_write_P(PSTR("CAP"), host_keyboard_led_state().caps_lock);
+            memcpy(t, "CAP", 3);
+            if (host_keyboard_led_state().caps_lock) *mask = 0x07;
             break;
         case NLK_WIDGET_NUMLOCK:
-            oled_write_P(PSTR("NLK"), host_keyboard_led_state().num_lock);
+            memcpy(t, "NLK", 3);
+            if (host_keyboard_led_state().num_lock) *mask = 0x07;
             break;
         case NLK_WIDGET_SCROLLLOCK:
-            oled_write_P(PSTR("SLK"), host_keyboard_led_state().scroll_lock);
+            memcpy(t, "SLK", 3);
+            if (host_keyboard_led_state().scroll_lock) *mask = 0x07;
             break;
         case NLK_WIDGET_RGBMAP:
-            oled_write_P(PSTR("MAP"), per_layer_rgb_get_enabled());
+            memcpy(t, "MAP", 3);
+            if (per_layer_rgb_get_enabled()) *mask = 0x07;
             break;
         case NLK_WIDGET_NUMWORD:
-            oled_write_P(PSTR("NUM"), num_word_is_active());
+            memcpy(t, "NUM", 3);
+            if (num_word_is_active()) *mask = 0x07;
             break;
         case NLK_WIDGET_SENTENCE:
-            oled_write_P(PSTR("SC"), is_sentence_case_on());
+            memcpy(t, "SC", 2);
+            if (is_sentence_case_on()) *mask = 0x03;
+            break;
+        case NLK_WIDGET_CUSTOM:
+            memcpy(t, custom_buf[line], NLK_DISPLAY_BIG_COLS);
             break;
         case NLK_WIDGET_BLANK:
         default:
             break;
     }
-    oled_advance_page(true);
 }
 
-// Portrait canvas 10 x 16 (SSD1306 128x64 + ROTATION_90), but the GLASS is a
-// 64x32 window: lines 4..11, text columns 0..4 — see NLK_DISPLAY_VISIBLE_* in
-// keyboards/nlofin/nlkb16_02/config.h. Every widget reads within 5 characters;
-// the off-glass lines are kept blank.
+static void render_pushed(void) {
+    for (uint8_t l = 0; l < NLK_DISPLAY_BIG_LINES; l++) {
+        render_big_line(l, push_buf[l], 0);
+    }
+    cache_valid = true;
+}
+
 static void render_fallback(void) {
-    for (uint8_t l = 0; l < NLK_DISPLAY_VISIBLE_FIRST; l++) {
-        oled_set_cursor(0, l);
-        oled_write_ln_P(PSTR(""), false);
+    for (uint8_t i = 0; i < NLK_DISPLAY_BIG_LINES; i++) {
+        // Space-padded raw 5 bytes, no terminator — render_big_line reads at
+        // most NLK_DISPLAY_BIG_COLS chars, so that's safe.
+        char    t[NLK_DISPLAY_BIG_COLS];
+        uint8_t mask;
+        widget_content(i, widgets[i], t, &mask);
+        render_big_line(i, t, mask);
     }
-    for (uint8_t i = 0; i < NLK_DISPLAY_VISIBLE_LINES; i++) {
-        oled_set_cursor(0, NLK_DISPLAY_VISIBLE_FIRST + i);
-        render_widget_line(widgets[i]);
+    cache_valid = true;
+}
+
+/* ---------------------------------------------------------------------------
+ * Transient overlays (v5): volume / RGB brightness / autoscroll speed.
+ * Values render LIVE each frame during the overlay window, so turning a
+ * knob keeps updating the glass while the window keeps extending.
+ * ------------------------------------------------------------------------- */
+#include "rgb_matrix.h"
+#include "shared/autoscroll.h"
+
+static volatile nlk_overlay_t overlay_type  = NLK_OVERLAY_NONE;
+static volatile char          overlay_aux   = 0;
+static volatile uint32_t      overlay_since = 0;
+static volatile uint16_t      overlay_ms    = NLK_DISPLAY_OVERLAY_MS_DEFAULT;
+
+void oled_display_overlay(nlk_overlay_t type, char aux) {
+    if (overlay_ms == 0) return; // disabled
+    overlay_type  = type;
+    overlay_aux   = aux;
+    overlay_since = timer_read32();
+}
+
+void oled_display_set_overlay_ms(uint16_t ms) {
+    if (ms > NLK_DISPLAY_OVERLAY_MS_MAX) ms = NLK_DISPLAY_OVERLAY_MS_MAX;
+    overlay_ms = ms;
+}
+
+uint16_t oled_display_get_overlay_ms(void) {
+    return overlay_ms;
+}
+
+static bool overlay_active(void) {
+    return overlay_type != NLK_OVERLAY_NONE && overlay_ms != 0 && timer_elapsed32(overlay_since) < overlay_ms;
+}
+
+static void render_overlay(void) {
+    char label[NLK_DISPLAY_BIG_COLS + 1] = "     ";
+    char value[NLK_DISPLAY_BIG_COLS + 1] = "     ";
+    switch (overlay_type) {
+        case NLK_OVERLAY_VOLUME:
+            memcpy(label, " VOL ", 5);
+            if (overlay_aux == 'M') {
+                memcpy(value, "MUTE ", 5);
+            } else {
+                value[2] = overlay_aux; // '+' or '-'
+            }
+            break;
+        case NLK_OVERLAY_RGB_VAL: {
+            memcpy(label, " BRI ", 5);
+            uint16_t pct = (uint16_t)rgb_matrix_get_val() * 100 / 255;
+            value[0]     = ' ';
+            value[1]     = pct >= 100 ? '1' : ' ';
+            value[2]     = pct >= 10 ? ('0' + (pct / 10) % 10) : ' ';
+            value[3]     = '0' + pct % 10;
+            value[4]     = '%';
+            break;
+        }
+        case NLK_OVERLAY_AUTOSCROLL: {
+            memcpy(label, "SCRL ", 5);
+            int8_t level = autoscroll_get_level();
+            if (level == 0) {
+                memcpy(value, " OFF ", 5);
+            } else {
+                value[1] = level > 0 ? '+' : '-';
+                value[2] = '0' + (level > 0 ? level : -level);
+            }
+            break;
+        }
+        default:
+            break;
     }
-    for (uint8_t l = NLK_DISPLAY_VISIBLE_FIRST + NLK_DISPLAY_VISIBLE_LINES; l < NLK_DISPLAY_LINES; l++) {
-        oled_set_cursor(0, l);
-        oled_write_ln_P(PSTR(""), false);
-    }
+    render_big_line(0, "     ", 0);
+    render_big_line(1, label, 0);
+    render_big_line(2, value, 0);
+    render_big_line(3, "     ", 0);
 }
 
 /* Panel-probe hooks (2026-07-06, freeze diagnosis): the panel ACKs every
@@ -304,6 +446,7 @@ bool oled_display_task(void) {
     if (reinit_req) {
         reinit_req = false;
         oled_init(OLED_ROTATION_90); // clears + dirties all; content repaints below
+        cache_valid = false;         // buffer was wiped — force full redraw
     }
     if (raw_cmd_len) {
         uint8_t frame[1 + sizeof(raw_cmd)];
@@ -314,7 +457,12 @@ bool oled_display_task(void) {
         raw_cmd_state = oled_send_cmd(frame, raw_cmd_len + 1) ? 1 : 0;
         raw_cmd_len   = 0;
     }
-    if (oled_display_pushed_active()) {
+    // Priority: transient overlay (device-driven feedback) > pushed content
+    // (app-driven) > widgets. Idle sleep applies below both — an overlay or
+    // push writes pixels, dirties blocks, and thereby wakes the panel.
+    if (overlay_active()) {
+        render_overlay();
+    } else if (oled_display_pushed_active()) {
         render_pushed();
     } else if (sleep_s != 0 && last_input_activity_elapsed() > (uint32_t)sleep_s * 1000) {
         // Idle: stop drawing BEFORE switching off — any dirty block makes

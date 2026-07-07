@@ -49,10 +49,16 @@
 #    define NLK_DISPLAY_SLEEP_S_MAX 3600
 #endif
 
-// Fallback-screen widgets (v3, 2026-07-06): each of the 8 visible lines
-// renders one widget, assignable over HID (display channel, 0x20 + line) and
-// persisted in nlk_config. Every widget draws within the 5-char glass width.
-// IDs are wire values — append-only, same spirit as HID value ids.
+// Big-line model (v5, 2026-07-07): the glass renders 4 lines of 5 characters
+// in a double-height font (each 6×8 glyph drawn 6×16 — our own copy of the
+// oled font, pixel-doubled vertically). Widgets, pushed content and the
+// transient overlays all draw through this one renderer.
+#define NLK_DISPLAY_BIG_LINES 4
+#define NLK_DISPLAY_BIG_COLS 5
+
+// Fallback-screen widgets: each of the 4 lines renders one widget,
+// assignable over HID (display channel, 0x20 + line) and persisted in
+// nlk_config. IDs are wire values — append-only, same spirit as HID ids.
 typedef enum {
     NLK_WIDGET_BLANK = 0,
     NLK_WIDGET_LAYER,      // "LYR n" — active layer, digit inverted
@@ -67,25 +73,50 @@ typedef enum {
     NLK_WIDGET_RGBMAP,     // "MAP" inverted while the per-layer RGB map is on
     NLK_WIDGET_NUMWORD,    // "NUM" inverted while num word is active
     NLK_WIDGET_SENTENCE,   // "SC" inverted while sentence case is on
+    NLK_WIDGET_CUSTOM,     // v5: the line's stored custom text (HID 0x30+line)
     NLK_WIDGET_COUNT
 } nlk_widget_t;
 
-// Boot/reseed assignment — reproduces the pre-v3 fixed fallback screen.
-#define NLK_DISPLAY_WIDGET_DEFAULTS                                                            \
-    {                                                                                          \
-        NLK_WIDGET_LAYER, NLK_WIDGET_UPTIME, NLK_WIDGET_RGBMAP, NLK_WIDGET_NUMWORD,            \
-        NLK_WIDGET_SENTENCE, NLK_WIDGET_CAPS, NLK_WIDGET_NUMLOCK, NLK_WIDGET_SCROLLLOCK        \
-    }
+// Boot/reseed assignment for the 4 lines.
+#define NLK_DISPLAY_WIDGET_DEFAULTS \
+    { NLK_WIDGET_LAYER, NLK_WIDGET_MODS, NLK_WIDGET_LOCKS, NLK_WIDGET_RGBMAP }
 
-// Per-line widget assignment (line = visible index 0-7, top to bottom).
-// Setter clamps out-of-range widget ids to the last valid one.
+// Per-line widget assignment (line 0-3, top to bottom). Setter clamps
+// out-of-range widget ids to the last valid one.
 void     oled_display_set_widget(uint8_t line, uint8_t widget);
 uint8_t  oled_display_get_widget(uint8_t line);
-// Live table pointer (NLK_DISPLAY_VISIBLE_LINES bytes) for config save/apply.
+// Live table pointer (NLK_DISPLAY_BIG_LINES bytes) for config save/apply.
 uint8_t *oled_display_widget_table(void);
 
-// Store one pushed line (non-printable bytes become spaces; len capped to
-// NLK_DISPLAY_COLS). Refreshes the staleness timer.
+// Custom text per line (shown by NLK_WIDGET_CUSTOM). Stored space-padded to
+// NLK_DISPLAY_BIG_COLS; non-printable bytes become spaces.
+void        oled_display_set_custom(uint8_t line, const uint8_t *text, uint8_t len);
+const char *oled_display_get_custom(uint8_t line); // NUL-terminated, 5 chars
+
+// Transient overlays (v5): keymap hooks call these on volume / RGB
+// brightness / autoscroll events; the glass shows a big label + live value
+// for overlay_ms (0 = overlays disabled), then falls back.
+typedef enum {
+    NLK_OVERLAY_NONE = 0,
+    NLK_OVERLAY_VOLUME,     // aux: '+' / '-' / 'M' (mute) — host owns the value
+    NLK_OVERLAY_RGB_VAL,    // value read live from rgb_matrix_get_val()
+    NLK_OVERLAY_AUTOSCROLL, // value read live from autoscroll_get_level()
+} nlk_overlay_t;
+
+void oled_display_overlay(nlk_overlay_t type, char aux);
+
+#ifndef NLK_DISPLAY_OVERLAY_MS_DEFAULT
+#    define NLK_DISPLAY_OVERLAY_MS_DEFAULT 2000
+#endif
+#ifndef NLK_DISPLAY_OVERLAY_MS_MAX
+#    define NLK_DISPLAY_OVERLAY_MS_MAX 10000
+#endif
+void     oled_display_set_overlay_ms(uint16_t ms); // clamps; 0 disables
+uint16_t oled_display_get_overlay_ms(void);
+
+// Store one pushed line (v5: line is a BIG line 0-3, len capped to
+// NLK_DISPLAY_BIG_COLS; non-printable bytes become spaces). Refreshes the
+// staleness timer.
 void oled_display_push_line(uint8_t line, const uint8_t *text, uint8_t len);
 // Drop pushed content immediately (back to the fallback screen).
 void oled_display_release(void);

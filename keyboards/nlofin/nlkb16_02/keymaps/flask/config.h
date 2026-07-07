@@ -51,8 +51,10 @@
 //      disp_sleep_s (idle seconds before the panel switches off).
 // v3 = appended autoscroll (+4 bytes: inverted, speed scale x100 u16,
 //      stop-on-key). SIZE unchanged.
+// v4 = display goes 4 big lines: disp_widgets shrank 8 -> 4; appended custom
+//      widget text (4 x 5 chars), overlay duration u16, leader timeout u16.
 #define EECONFIG_USER_DATA_SIZE 1024
-#define EECONFIG_USER_DATA_VERSION 3
+#define EECONFIG_USER_DATA_VERSION 4
 
 // Per-combo layer gating (Adept parity): compiles the combo_should_trigger()
 // hook into quantum/process_combo.c; masks table edited over HID channel
@@ -103,6 +105,10 @@
 // the driver's OLED_TIMEOUT every second (burn-in). HID 0x22/0x0A.
 #define NLK_DISPLAY_SLEEP_S_DEFAULT 120
 #define NLK_DISPLAY_SLEEP_S_MAX 3600
+// Transient overlays (v5): volume / RGB brightness / autoscroll level flash
+// on the glass for this long (0 = disabled). HID 0x22/0x0B.
+#define NLK_DISPLAY_OVERLAY_MS_DEFAULT 2000
+#define NLK_DISPLAY_OVERLAY_MS_MAX 10000
 
 /* ---------------------------------------------------------------------------
  * RGB boot/wake holdoff (keymap.c)
@@ -172,3 +178,7 @@
 #define LEADER_PER_KEY_TIMING
 #define NLK_LEADER_SEQ_COUNT 8
 #define NLK_LEADER_SEQ_KEYS 5
+// Live-tunable timeout bounds (v5, HID 0x19/0x01): output fires this many ms
+// after the last sequence key — lower = snappier, less typing margin.
+#define NLK_LEADER_TIMEOUT_MIN 100
+#define NLK_LEADER_TIMEOUT_MAX 2000

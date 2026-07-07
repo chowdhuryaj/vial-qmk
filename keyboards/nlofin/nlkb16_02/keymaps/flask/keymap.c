@@ -73,15 +73,15 @@ enum nlkb16_keycodes {
  * Worth more on this board than the others: the Maple bootloader mass-erases
  * the EEPROM on every flash, so the baked block IS the post-flash layout. */
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
-    /* Baked by Flask (2026-07-06) from the live keymap of NLKB16-02.
+    /* Baked by Flask (2026-07-07) from the live keymap of NLKB16-02.
        Raw matrix form, row-major [row][col] hex keycodes. Re-bake from
        the Build tab instead of hand-editing. */
     /* ===== 0: Layer 0 ===== */
     [0] = {
-        { 0x001E, 0x001F, 0x0020, 0x0021, 0x00AE },
-        { 0x0022, 0x0023, 0x0024, 0x0025, 0x5201 },
+        { 0x7E00, 0x7E01, 0x7E02, 0x7E03, 0x00AE },
+        { 0x0022, 0x7C58, 0x0024, 0x0025, 0x5201 },
         { 0x0026, 0x0027, 0x0052, 0x0028, 0x00A8 },
-        { 0x5227, 0x0050, 0x0051, 0x004F, 0x0000 },
+        { 0x7E10, 0x0050, 0x0051, 0x004F, 0x0000 },
     },
     /* ===== 1: Layer 1 ===== */
     [1] = {
@@ -159,6 +159,21 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
  * ------------------------------------------------------------------------- */
 static uint16_t leader_seqs[NLK_LEADER_SEQ_COUNT][NLK_LEADER_SEQ_KEYS + 1];
 
+// Live leader timeout (v5): strong override of the weak getter added to
+// quantum/leader.c — the sequence fires this many ms after the last key.
+// HID 0x19/0x01, persisted; lower = snappier output, less typing margin.
+static uint16_t leader_timeout_ms = LEADER_TIMEOUT;
+
+uint16_t leader_timeout_get(void) {
+    return leader_timeout_ms;
+}
+
+static void nlk_leader_set_timeout(uint16_t ms) {
+    if (ms < NLK_LEADER_TIMEOUT_MIN) ms = NLK_LEADER_TIMEOUT_MIN;
+    if (ms > NLK_LEADER_TIMEOUT_MAX) ms = NLK_LEADER_TIMEOUT_MAX;
+    leader_timeout_ms = ms;
+}
+
 // Globals defined in quantum/leader.c but not declared in leader.h (it only
 // exposes fixed-arity prefix matchers, which can't length-check).
 extern uint16_t leader_sequence[5];
@@ -229,15 +244,20 @@ typedef struct __attribute__((packed)) {
     nlk_rgbmap_t rgbmap;
     // OLED display.
     uint16_t disp_hold_ms;
-    // v2: per-line fallback-screen widget assignment (visible lines 0-7)
-    // + idle sleep (seconds of no input before the panel switches off).
-    uint8_t  disp_widgets[NLK_DISPLAY_VISIBLE_LINES];
+    // v2: per-line fallback-screen widget assignment + idle sleep (seconds
+    // of no input before the panel switches off).
+    // v4: widgets shrank to the 4 big lines (display went double-height).
+    uint8_t  disp_widgets[NLK_DISPLAY_BIG_LINES];
     uint16_t disp_sleep_s;
     // v3: autoscroll (stepped mode; this board has no ball, so no jog
     // tunables — only invert, speed scale and the stop-on-key switch).
     uint8_t  as_inverted;
     uint16_t as_speed_scale_x100;
     uint8_t  as_stop_on_key;
+    // v4: custom widget text per line, overlay duration, leader timeout.
+    char     disp_custom[NLK_DISPLAY_BIG_LINES][NLK_DISPLAY_BIG_COLS];
+    uint16_t disp_overlay_ms;
+    uint16_t leader_timeout_ms;
 } nlk_config_t;
 _Static_assert(sizeof(nlk_config_t) <= EECONFIG_USER_DATA_SIZE, "nlk_config_t exceeds EECONFIG_USER_DATA_SIZE");
 
@@ -265,12 +285,16 @@ static void nlk_config_set_defaults(void) {
         .as_inverted      = AUTOSCROLL_INVERTED_DEFAULT ? 1 : 0,
         .as_speed_scale_x100 = AUTOSCROLL_SPEED_SCALE_X100,
         .as_stop_on_key   = AUTOSCROLL_STOP_ON_KEY_DEFAULT ? 1 : 0,
+        .disp_overlay_ms  = NLK_DISPLAY_OVERLAY_MS_DEFAULT,
+        .leader_timeout_ms = LEADER_TIMEOUT,
     };
     // csk_table, leader_seqs and rgbmap zero-init = empty slots / all-black
-    // map; combo masks default to "all layers allowed".
+    // map; combo masks default to "all layers allowed"; custom widget text
+    // defaults to spaces.
     for (uint8_t i = 0; i < VIAL_COMBO_ENTRIES; i++) {
         nlk_config.combo_layer_masks[i] = 0xFFFF;
     }
+    memset(nlk_config.disp_custom, ' ', sizeof(nlk_config.disp_custom));
 }
 
 // Push the persisted snapshot into every module's live runtime state (boot).
@@ -293,13 +317,16 @@ static void nlk_config_apply(void) {
     memcpy(per_layer_rgb_table(), nlk_config.rgbmap, sizeof(nlk_config.rgbmap));
     oled_display_set_hold_ms(nlk_config.disp_hold_ms);
     oled_display_set_sleep_s(nlk_config.disp_sleep_s);
+    oled_display_set_overlay_ms(nlk_config.disp_overlay_ms);
     // Through the setter (not memcpy): it clamps ids a newer config wrote.
-    for (uint8_t i = 0; i < NLK_DISPLAY_VISIBLE_LINES; i++) {
+    for (uint8_t i = 0; i < NLK_DISPLAY_BIG_LINES; i++) {
         oled_display_set_widget(i, nlk_config.disp_widgets[i]);
+        oled_display_set_custom(i, (const uint8_t *)nlk_config.disp_custom[i], NLK_DISPLAY_BIG_COLS);
     }
     set_autoscroll_inverted(nlk_config.as_inverted != 0);
     set_autoscroll_speed_scale(nlk_config.as_speed_scale_x100);
     set_autoscroll_stop_on_key(nlk_config.as_stop_on_key != 0);
+    nlk_leader_set_timeout(nlk_config.leader_timeout_ms);
 }
 
 /* ---------------------------------------------------------------------------
@@ -322,6 +349,32 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 break; // the controls keep their own behavior
             default:
                 autoscroll_stop();
+                break;
+        }
+    }
+
+    // Display overlays (v5, observe-only — the keys still do their jobs):
+    // volume and RGB-brightness events flash a big readout on the glass.
+    if (record->event.pressed) {
+        switch (keycode) {
+            case KC_AUDIO_MUTE:
+            case KC_KB_MUTE:
+                oled_display_overlay(NLK_OVERLAY_VOLUME, 'M');
+                break;
+            case KC_AUDIO_VOL_UP:
+            case KC_KB_VOLUME_UP:
+                oled_display_overlay(NLK_OVERLAY_VOLUME, '+');
+                break;
+            case KC_AUDIO_VOL_DOWN:
+            case KC_KB_VOLUME_DOWN:
+                oled_display_overlay(NLK_OVERLAY_VOLUME, '-');
+                break;
+            case RGB_VAI:
+            case RGB_VAD:
+                // Value renders live from rgb_matrix_get_val() during the
+                // overlay window, so it tracks the change process_rgb is
+                // about to apply.
+                oled_display_overlay(NLK_OVERLAY_RGB_VAL, 0);
                 break;
         }
     }
@@ -406,18 +459,33 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             if (record->event.pressed) os_shortcuts_tap(OS_SHORTCUT_LAUNCH);
             return false;
         case ASC_UP:
-            if (record->event.pressed) autoscroll_step(1);
+            if (record->event.pressed) {
+                autoscroll_step(1);
+                oled_display_overlay(NLK_OVERLAY_AUTOSCROLL, 0);
+            }
             return false;
         case ASC_DOWN:
-            if (record->event.pressed) autoscroll_step(-1);
+            if (record->event.pressed) {
+                autoscroll_step(-1);
+                oled_display_overlay(NLK_OVERLAY_AUTOSCROLL, 0);
+            }
             return false;
     }
     return true;
 }
 
-// The custom pointing driver contributes an empty report each pass (weak
-// no-op defaults, quantum/pointing_device.c) — autoscroll injects its wheel
-// ticks here. Jog never engages on this board (nothing feeds report.y).
+// The weak custom-driver init returns FALSE ("init failed"), which parks
+// pointing_device_status away from SUCCESS and pointing_device_task bails
+// before any task hook runs — autoscroll silently dead (hardware-found
+// 2026-07-07). There is no hardware to init; report success.
+// (Weak default at quantum/pointing_device.c:95.)
+bool pointing_device_driver_init(void) {
+    return true;
+}
+
+// The custom driver's get_report is a passthrough (weak no-op) — autoscroll
+// injects its wheel ticks into the empty report here. Jog never engages on
+// this board (nothing feeds report.y).
 report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
     return autoscroll_apply(mouse_report);
 }
@@ -479,28 +547,11 @@ bool oled_task_user(void) {
 }
 #endif
 
-/* Raw-HID path debug blinks (2026-07-06 display saga): key (0,0) magenta =
- * a VIA custom frame reached raw_hid_receive_kb; key (0,3) cyan = a response
- * left via via_raw_hid_send. Visible proof of RX/TX liveness without a
- * working host readback. Harmless to leave in — only lights during traffic. */
-static volatile uint32_t nlk_dbg_rx_time = 0;
-static volatile uint32_t nlk_dbg_tx_time = 0;
-
-#include "raw_hid.h"
-// Weak default at quantum/via.c:68 (fork has a src-tagged send hook).
-void via_raw_hid_send(uint8_t src, uint8_t *data, uint8_t length) {
-    nlk_dbg_tx_time = timer_read32();
-    raw_hid_send(data, length);
-}
-
+/* (The 2026-07-06 display-saga RX/TX debug blinks lived here — magenta and
+ * cyan key flashes on every HID frame. Removed 2026-07-07 on user feedback:
+ * every app edit flashed the board. git history has them if ever needed.) */
 bool rgb_matrix_indicators_user(void) {
     per_layer_rgb_render();
-    if (timer_elapsed32(nlk_dbg_rx_time) < 400) {
-        rgb_matrix_set_color(0, 255, 0, 255); // magenta: frame received
-    }
-    if (timer_elapsed32(nlk_dbg_tx_time) < 400) {
-        rgb_matrix_set_color(3, 0, 255, 255); // cyan: response sent
-    }
     return false;
 }
 
@@ -558,7 +609,12 @@ void keyboard_post_init_user(void) {
 // v4 (2026-07-06): autoscroll channel 0x1A (stepped mode only — 0x01 invert,
 // 0x02 speed scale, 0x05 live level/force-stop, 0x06 stop-on-key; no jog
 // ids, this board has no ball) + ASC_UP/ASC_DOWN keycodes (indices 20-21).
-#define NLK_HID_PROTOCOL_VERSION 4
+// v5 (2026-07-07): display goes double-height — 4 big lines × 5 chars.
+// Widgets now 0x20-0x23 (+ CUSTOM widget id 13, per-line text at 0x30+line,
+// payload-addressed); push line ids are BIG lines 0-3; transient overlays
+// (volume/RGB brightness/autoscroll level) with duration at 0x0B; leader
+// timeout live at 0x19/0x01. RX/TX debug key blinks removed.
+#define NLK_HID_PROTOCOL_VERSION 5
 
 enum nlk_hid_channel {
     nlk_ch_meta        = 0x00, // 0x01 protocol version RO; 0x02 active layer RO
@@ -595,6 +651,7 @@ enum nlk_hid_sentence_value {
 };
 
 enum nlk_hid_leader_value {
+    nlk_leader_timeout = 0x01, // v5: ms after the last key before output fires
     // Slots: 0x10 + seq*8 + pos; pos 0..4 = keys, 5 = output keycode.
     nlk_leader_slot_base = 0x10,
 };
@@ -653,13 +710,17 @@ enum nlk_hid_display_value {
     nlk_display_reinit     = 0x08, // SET: re-run full oled_init(). v2.
     nlk_display_widget_cnt = 0x09, // RO: NLK_WIDGET_COUNT (v3)
     nlk_display_sleep_s    = 0x0A, // idle seconds before panel off; 0 = never (v3)
-    // SET 0x10: payload = [line, ASCII chars] — push a line
+    nlk_display_overlay_ms = 0x0B, // transient overlay duration; 0 = off (v5)
+    // SET 0x10: payload = [line, ASCII chars] — push a line (v5: BIG line 0-3)
     nlk_display_push       = 0x10,
     // SET 0x11: release (back to fallback screen immediately)
     nlk_display_release    = 0x11,
-    // v3: fallback-screen widget per visible line (0-7): 0x20 + line,
-    // u16 = nlk_widget_t id. Persisted with the display channel save.
+    // v3: fallback-screen widget per line: 0x20 + line, u16 = nlk_widget_t
+    // id. v5: 4 big lines (0x20-0x23). Persisted with the channel save.
     nlk_display_widget_base = 0x20,
+    // v5: custom widget text per line, payload-addressed: SET [chars ≤5],
+    // GET → payload [5 chars]. 0x30 + line.
+    nlk_display_custom_base = 0x30,
 };
 
 static void nlk_hid_write_u16(uint8_t *payload, uint16_t value) {
@@ -720,6 +781,10 @@ static bool nlk_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             return false;
 
         case nlk_ch_leader:
+            if (value_id == nlk_leader_timeout) {
+                nlk_hid_write_u16(payload, leader_timeout_ms);
+                return true;
+            }
             if (value_id >= nlk_leader_slot_base && value_id < nlk_leader_slot_base + NLK_LEADER_SEQ_COUNT * 8) {
                 uint8_t rel = value_id - nlk_leader_slot_base;
                 uint8_t seq = rel / 8;
@@ -814,8 +879,16 @@ static bool nlk_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 nlk_hid_write_u16(payload, oled_display_get_sleep_s());
                 return true;
             }
-            if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_VISIBLE_LINES) {
+            if (value_id == nlk_display_overlay_ms) {
+                nlk_hid_write_u16(payload, oled_display_get_overlay_ms());
+                return true;
+            }
+            if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_BIG_LINES) {
                 nlk_hid_write_u16(payload, oled_display_get_widget(value_id - nlk_display_widget_base));
+                return true;
+            }
+            if (value_id >= nlk_display_custom_base && value_id < nlk_display_custom_base + NLK_DISPLAY_BIG_LINES) {
+                memcpy(payload, oled_display_get_custom(value_id - nlk_display_custom_base), NLK_DISPLAY_BIG_COLS);
                 return true;
             }
             return false;
@@ -864,6 +937,10 @@ static bool nlk_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             return false;
 
         case nlk_ch_leader:
+            if (value_id == nlk_leader_timeout) {
+                nlk_leader_set_timeout(nlk_hid_read_u16(payload)); // clamps
+                return true;
+            }
             if (value_id >= nlk_leader_slot_base && value_id < nlk_leader_slot_base + NLK_LEADER_SEQ_COUNT * 8) {
                 uint8_t rel = value_id - nlk_leader_slot_base;
                 uint8_t seq = rel / 8;
@@ -992,11 +1069,20 @@ static bool nlk_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
                 oled_display_set_sleep_s(nlk_hid_read_u16(payload)); // setter clamps
                 return true;
             }
-            if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_VISIBLE_LINES) {
+            if (value_id == nlk_display_overlay_ms) {
+                oled_display_set_overlay_ms(nlk_hid_read_u16(payload)); // setter clamps
+                return true;
+            }
+            if (value_id >= nlk_display_widget_base && value_id < nlk_display_widget_base + NLK_DISPLAY_BIG_LINES) {
                 // Clamp in u16 wire space; the setter clamps the id range.
                 uint16_t widget = nlk_hid_read_u16(payload);
                 if (widget > 0xFF) widget = 0xFF;
                 oled_display_set_widget(value_id - nlk_display_widget_base, (uint8_t)widget);
+                return true;
+            }
+            if (value_id >= nlk_display_custom_base && value_id < nlk_display_custom_base + NLK_DISPLAY_BIG_LINES) {
+                // Payload = raw chars (≤5); module space-pads + sanitizes.
+                oled_display_set_custom(value_id - nlk_display_custom_base, payload, NLK_DISPLAY_BIG_COLS);
                 return true;
             }
             return false;
@@ -1022,6 +1108,7 @@ static bool nlk_hid_save(uint8_t channel) {
             break;
         case nlk_ch_leader:
             memcpy(nlk_config.leader_seqs, leader_seqs, sizeof(nlk_config.leader_seqs));
+            nlk_config.leader_timeout_ms = leader_timeout_ms;
             break;
         case nlk_ch_autoscroll:
             nlk_config.as_inverted         = get_autoscroll_inverted() ? 1 : 0;
@@ -1044,9 +1131,13 @@ static bool nlk_hid_save(uint8_t channel) {
             memcpy(nlk_config.rgbmap, per_layer_rgb_table(), sizeof(nlk_config.rgbmap));
             break;
         case nlk_ch_display:
-            nlk_config.disp_hold_ms = oled_display_get_hold_ms();
-            nlk_config.disp_sleep_s = oled_display_get_sleep_s();
+            nlk_config.disp_hold_ms    = oled_display_get_hold_ms();
+            nlk_config.disp_sleep_s    = oled_display_get_sleep_s();
+            nlk_config.disp_overlay_ms = oled_display_get_overlay_ms();
             memcpy(nlk_config.disp_widgets, oled_display_widget_table(), sizeof(nlk_config.disp_widgets));
+            for (uint8_t i = 0; i < NLK_DISPLAY_BIG_LINES; i++) {
+                memcpy(nlk_config.disp_custom[i], oled_display_get_custom(i), NLK_DISPLAY_BIG_COLS);
+            }
             break;
         default:
             return false;
@@ -1058,8 +1149,6 @@ static bool nlk_hid_save(uint8_t channel) {
 // Weak default at quantum/via.c:188. via.c echoes the buffer after this
 // returns — no raw_hid_send() here.
 void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
-    nlk_dbg_rx_time = timer_read32(); // debug blink: frame reached us
-
     uint8_t *command  = &data[0];
     uint8_t  channel  = data[1];
     uint8_t  value_id = data[2];
