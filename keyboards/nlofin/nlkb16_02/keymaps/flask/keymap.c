@@ -76,62 +76,91 @@ enum nlkb16_keycodes {
  * Worth more on this board than the others: the Maple bootloader mass-erases
  * the EEPROM on every flash, so the baked block IS the post-flash layout. */
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
-    /* Baked by Flask (2026-07-07) from the live keymap of NLKB16-02.
-       Raw matrix form, row-major [row][col] hex keycodes. Re-bake from
-       the Build tab instead of hand-editing. */
-    /* ===== 0: Base ===== */
+    /* Hand-seeded 2026-07-07 for the rads workstation (RadKit AHK hotkey
+       targets — ~/RadKit/README.md is the decode table for every chord
+       below). Raw matrix form, row-major [row][col] hex keycodes; a Flask
+       re-bake replaces this whole block.
+
+       Standalone-survival rules (locked-down PC: no Flask, no Vial GUI, and
+       the Maple bootloader erases the EEPROM on every flash — this block IS
+       the post-flash keymap):
+       - knob2 push (1,4) = LYR_UP (0x7E16) on EVERY layer. The old stock
+         TO() chain had TO(0) on layer 0 — a dead end that made layers 2-6
+         unreachable post-flash without host software.
+       - knob1 push (0,4) on work layers = TO(0) (0x5200): one-press escape
+         back to base from anywhere.
+       - unbound keys on work layers are KC_NO (0x0000), NOT KC_TRNS — a
+         fall-through to base would fire F11/F12, which PACS binds to
+         scout/localizer. */
+    /* ===== 0: BASE ===== */
     [0] = {
         { 0x0015, 0x001C, 0x0044, 0x0045, 0x00AE },
-        { 0x0068, 0x0069, 0x006A, 0x006B, 0x5200 },
+        { 0x0068, 0x0069, 0x006A, 0x006B, 0x7E16 },
         { 0x0029, 0x022B, 0x002B, 0x0028, 0x00A8 },
         { 0x006B, 0x006C, 0x002C, 0x4139, 0x0000 },
     },
-    /* ===== 1: bl ===== */
+    /* ===== 1: RGB / features ===== */
     [1] = {
         { 0x7C00, 0x7829, 0x0001, 0x0001, 0x0001 },
-        { 0x7826, 0x7825, 0x0001, 0x0001, 0x5202 },
+        { 0x7826, 0x7825, 0x0001, 0x0001, 0x7E16 },
         { 0x7822, 0x7821, 0x7823, 0x0001, 0x0001 },
         { 0x7820, 0x7828, 0x7824, 0x0001, 0x0000 },
     },
-    /* ===== 2: ed ===== */
+    /* ===== 2: DICT — PowerScribe dictation/report =====
+       Caps=dictate  F13/F14=prev/next field  ^!R=compare
+       ^F13/^F14=word L/R  F7/F8=bksp/fwd-del
+       F17/⇧F17=undo/redo  ^!N=notepad  ^!S=stream deck
+       ^!Z=prelim  F18=changelist  F19=pager  ^!K=radiopaedia */
     [2] = {
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5203 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+        { 0x0039, 0x0068, 0x0069, 0x0515, 0x5200 },
+        { 0x0168, 0x0169, 0x0040, 0x0041, 0x7E16 },
+        { 0x006C, 0x026C, 0x0511, 0x0516, 0x0001 },
+        { 0x051D, 0x006D, 0x006E, 0x050E, 0x0000 },
     },
-    /* ===== 3: Layer 3 ===== */
+    /* ===== 3: CALL — call workflow =====
+       ^!Z=prelim  F18=changelist  F19=pager  ^!Q=break-the-glass
+       ^!K=radiopaedia  ^!L=edge  ^!E=epic  F24=reference menu
+       ^!S=deck  ^!N=notepad  Caps=dictate  ^!R=compare
+       ⇧F7/⇧F8=cursor to L/R monitor  ^⇧Caps=master toggle  ^!⇧F12=panic */
     [3] = {
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5204 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+        { 0x051D, 0x006D, 0x006E, 0x0514, 0x5200 },
+        { 0x050E, 0x050F, 0x0508, 0x0073, 0x7E16 },
+        { 0x0516, 0x0511, 0x0039, 0x0515, 0x0001 },
+        { 0x0240, 0x0241, 0x0339, 0x0745, 0x0000 },
     },
-    /* ===== 4: Layer 4 ===== */
+    /* ===== 4: UTIL — panels & utility =====
+       ^!S=deck  ^!N=notepad  F24=reference  ^!K=radiopaedia
+       ^!L=edge  ^!E=epic  ^!Q=break-the-glass
+       ⇧F7/⇧F8=monitor teleport  ^⇧Caps=master toggle  ^!⇧F12=panic */
     [4] = {
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5205 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+        { 0x0516, 0x0511, 0x0073, 0x050E, 0x5200 },
+        { 0x050F, 0x0508, 0x0514, 0x0000, 0x7E16 },
+        { 0x0240, 0x0241, 0x0000, 0x0000, 0x0001 },
+        { 0x0339, 0x0745, 0x0000, 0x0000, 0x0000 },
     },
-    /* ===== 5: Layer 5 ===== */
+    /* ===== 5: PACS — IntelliSpace tools (RadKit ^!x mouse-macro chords) =====
+       ^!1=measure  ^!⇧7=ROI  ^!D=scout  ^!==clear
+       ^!⇧3=localizer  ^!G=arrow  ^!3=angle  F15=BODY/NEURO WL mode
+       F16/^F16=next/prev WL preset  F11/F12=scout/localizer keys
+       ==zoom in  -=zoom out  Caps=dictate  ^!⇧F12=panic */
     [5] = {
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5206 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+        { 0x051E, 0x0724, 0x0507, 0x052E, 0x5200 },
+        { 0x0720, 0x050A, 0x0520, 0x006A, 0x7E16 },
+        { 0x006B, 0x016B, 0x0044, 0x0045, 0x0001 },
+        { 0x002E, 0x002D, 0x0039, 0x0745, 0x0000 },
     },
-    /* ===== 6: Layer 6 ===== */
+    /* ===== 6: SITE — reserved for iSite 4.7 bindings (ISITE_EXE still
+       unmapped in RadKit; fill once Window Spy'd at an iSite workstation) */
     [6] = {
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5207 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x0000 },
+        { 0x0000, 0x0000, 0x0000, 0x0000, 0x5200 },
+        { 0x0000, 0x0000, 0x0000, 0x0000, 0x7E16 },
+        { 0x0000, 0x0000, 0x0000, 0x0000, 0x0001 },
+        { 0x0000, 0x0000, 0x0000, 0x0000, 0x0000 },
     },
-    /* ===== 7: Layer 7 ===== */
+    /* ===== 7: CONF — settings ===== */
     [7] = {
         { 0x0001, 0x0001, 0x0001, 0x7C00, 0x0001 },
-        { 0x0001, 0x0001, 0x0001, 0x0001, 0x5200 },
+        { 0x0001, 0x0001, 0x0001, 0x0001, 0x7E16 },
         { 0x0001, 0x0001, 0x0001, 0x0001, 0x0001 },
         { 0x7E10, 0x0001, 0x0001, 0x0001, 0x0000 },
     },
@@ -139,13 +168,21 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 /* FLASK-BAKE-END */
 
 #ifdef ENCODER_MAP_ENABLE
+// Firmware defaults = the post-flash state (Vial's dynamic encoder overrides
+// live in EEPROM, which the Maple bootloader erases on every flash). Work
+// layers seed their RadKit-relevant dials; KC_TRNS falls through to layer 0.
 const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
     [0] = { ENCODER_CCW_CW(KC_MPRV, KC_MNXT), ENCODER_CCW_CW(KC_PGDN, KC_PGUP), ENCODER_CCW_CW(KC_VOLD, KC_VOLU) },
     [1] = { ENCODER_CCW_CW(RGB_VAD, RGB_VAI), ENCODER_CCW_CW(RGB_SAD, RGB_SAI), ENCODER_CCW_CW(RGB_HUD, RGB_HUI) },
-    [2] = { ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS) },
+    // DICT: knob1 = report field prev/next, knob2 = word left/right.
+    [2] = { ENCODER_CCW_CW(KC_F13, KC_F14), ENCODER_CCW_CW(C(KC_F13), C(KC_F14)), ENCODER_CCW_CW(KC_TRNS, KC_TRNS) },
     [3] = { ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS) },
     [4] = { ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS) },
-    [5] = { ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS) },
+    // PACS: knob1 = W/L preset prev/next; knob2 = autoscroll speed dial
+    // (hands-free stack cine — stop-on-any-key exits it); big knob = zoom
+    // out/in (RadKit maps wheel zoom to =/-). Plain PGDN/PGUP paging stays
+    // on layer 0's knob2.
+    [5] = { ENCODER_CCW_CW(C(KC_F16), KC_F16), ENCODER_CCW_CW(ASC_DOWN, ASC_UP), ENCODER_CCW_CW(KC_MINS, KC_EQL) },
     [6] = { ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS) },
     [7] = { ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS), ENCODER_CCW_CW(KC_TRNS, KC_TRNS) },
 };
@@ -637,7 +674,9 @@ void keyboard_post_init_user(void) {
 // direction corrected at the pin level (keyboard.json pin_a/pin_b swapped;
 // the two small knobs read backwards on hardware) + RGB_MATRIX_DEFAULT_ON
 // false (panel boots dark after the Maple bootloader's EEPROM erase).
-#define NLK_HID_PROTOCOL_VERSION 7
+// v8 (2026-07-07): LAYERNAME display widget (id 14) + RadKit workstation
+// bake (keymap-only otherwise — no new channels/value ids, EEPROM v4 stands).
+#define NLK_HID_PROTOCOL_VERSION 8
 
 enum nlk_hid_channel {
     nlk_ch_meta        = 0x00, // 0x01 protocol version RO; 0x02 active layer RO

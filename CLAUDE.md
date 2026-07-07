@@ -406,6 +406,20 @@ the PIN level (keyboard.json pin_a/pin_b swapped — the two small knobs read
 backwards on hardware; the big knob was correct), and
 `RGB_MATRIX_DEFAULT_ON false` (post-flash EEPROM reseed boots the strip
 dark — RGB_TOG/Flask turns it on and persists until the next reflash).
+**v8 (2026-07-07, rads-workstation round):** LAYERNAME display widget (id
+14, 5-char names via `NLK_LAYER_NAMES` in keymap config.h, now the default
+line-0 widget) + baked keymap became the RadKit workstation layout — layers
+2-6 = DICT/CALL/UTIL/PACS/SITE firing `~/RadKit/README.md` hotkey chords;
+knob2 push = `LYR_UP` on EVERY layer (stock TO() chain had TO(0) on layer 0
+= post-flash dead end with no host software); knob1 push on work layers =
+TO(0) home; unbound work-layer keys = KC_NO not KC_TRNS (fall-through to
+base fires F11/F12 = PACS scout/localizer); encoder_map seeds L2 (field/word
+nav) + L5 (W/L presets, autoscroll speed dial, zoom =/-);
+`OS_SHORTCUTS_MAC_DEFAULT`/`SELECT_WORD_MAC_DEFAULT` flipped to pc (host is
+a locked-down Windows box; the bootloader erase re-seeds defaults every
+flash — follow-detection still flips mac at home). EEPROM still v4 (widget
+id append + default flips only, no layout change). Flask app doesn't know
+widget id 14 yet — picker addition pending.
 Shares the `qmk-flask-modules` submodule (getreuer set + autoscroll).
 24 custom keycodes; THE keycode rule applies (enum ↔ `vial.json`).
 

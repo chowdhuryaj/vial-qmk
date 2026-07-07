@@ -332,6 +332,20 @@ static void widget_content(uint8_t line, uint8_t widget, char *t, uint8_t *mask)
         case NLK_WIDGET_CUSTOM:
             memcpy(t, custom_buf[line], NLK_DISPLAY_BIG_COLS);
             break;
+        case NLK_WIDGET_LAYERNAME: {
+            static const char names[][NLK_DISPLAY_BIG_COLS + 1] = NLK_LAYER_NAMES;
+            uint8_t           layer = get_highest_layer(layer_state | default_layer_state);
+            if (layer < ARRAY_SIZE(names)) {
+                // Names may be short — copy up to 5 chars, stop at the NUL.
+                for (uint8_t i = 0; i < NLK_DISPLAY_BIG_COLS && names[layer][i]; i++) {
+                    t[i] = names[layer][i];
+                }
+            } else {
+                memcpy(t, "LYR ", 4);
+                t[4] = '0' + layer;
+            }
+            break;
+        }
         case NLK_WIDGET_BLANK:
         default:
             break;

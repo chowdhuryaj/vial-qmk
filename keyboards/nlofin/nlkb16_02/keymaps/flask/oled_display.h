@@ -74,12 +74,20 @@ typedef enum {
     NLK_WIDGET_NUMWORD,    // "NUM" inverted while num word is active
     NLK_WIDGET_SENTENCE,   // "SC" inverted while sentence case is on
     NLK_WIDGET_CUSTOM,     // v5: the line's stored custom text (HID 0x30+line)
+    NLK_WIDGET_LAYERNAME,  // v8: active layer's 5-char name (NLK_LAYER_NAMES)
     NLK_WIDGET_COUNT
 } nlk_widget_t;
 
-// Boot/reseed assignment for the 4 lines.
+// 5-char name per layer for NLK_WIDGET_LAYERNAME (shorter names space-pad).
+#ifndef NLK_LAYER_NAMES
+#    define NLK_LAYER_NAMES \
+        { "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7" }
+#endif
+
+// Boot/reseed assignment for the 4 lines. LAYERNAME on top: post-flash on a
+// host with no Flask, the glass itself must say which work layer is active.
 #define NLK_DISPLAY_WIDGET_DEFAULTS \
-    { NLK_WIDGET_LAYER, NLK_WIDGET_MODS, NLK_WIDGET_LOCKS, NLK_WIDGET_RGBMAP }
+    { NLK_WIDGET_LAYERNAME, NLK_WIDGET_MODS, NLK_WIDGET_LOCKS, NLK_WIDGET_RGBMAP }
 
 // Per-line widget assignment (line 0-3, top to bottom). Setter clamps
 // out-of-range widget ids to the last valid one.

@@ -109,6 +109,10 @@
 // on the glass for this long (0 = disabled). HID 0x22/0x0B.
 #define NLK_DISPLAY_OVERLAY_MS_DEFAULT 2000
 #define NLK_DISPLAY_OVERLAY_MS_MAX 10000
+// Layer names for the LAYERNAME widget (v8) — matches the baked RadKit
+// layer plan in keymap.c (5 chars max).
+#define NLK_LAYER_NAMES \
+    { "BASE", "RGB", "DICT", "CALL", "UTIL", "PACS", "SITE", "CONF" }
 
 /* ---------------------------------------------------------------------------
  * RGB boot/wake holdoff (keymap.c)
@@ -146,7 +150,11 @@
  * Select word (shared/select_word, getreuer port)
  * ------------------------------------------------------------------------- */
 #define SELECT_WORD_TIMEOUT 5000
-#define SELECT_WORD_MAC_DEFAULT true
+// pc default (v8): deployment target is a locked-down Windows workstation
+// and the bootloader erase re-seeds these on every flash — if OS detection
+// ever fails there, the fallback must already be Windows behavior. Follow
+// mode still flips to mac automatically on a Mac host.
+#define SELECT_WORD_MAC_DEFAULT false
 
 /* ---------------------------------------------------------------------------
  * Sentence case (shared/sentence_case, getreuer port)
@@ -158,7 +166,8 @@
 /* ---------------------------------------------------------------------------
  * OS-aware shortcuts (shared/os_shortcuts)
  * ------------------------------------------------------------------------- */
-#define OS_SHORTCUTS_MAC_DEFAULT true
+// pc default (v8) — same rationale as SELECT_WORD_MAC_DEFAULT above.
+#define OS_SHORTCUTS_MAC_DEFAULT false
 #define OS_SHORTCUTS_FOLLOW_DEFAULT true
 
 /* ---------------------------------------------------------------------------
