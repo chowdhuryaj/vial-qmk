@@ -1,5 +1,15 @@
 # Ploopy Adept Vial-QMK Firmware Project
 
+> **WHICH PROJECT AM I IN?** This is the **QMK/Vial** fork (C firmware for the
+> Ploopy Adept, Svalboard, and NLKB16). The **ZMK** port (Cyboard Imprint,
+> Zephyr/devicetree) is a **separate project at `~/ZMK-Flask`** with its own
+> CLAUDE.md and memory. If the user asks about **ZMK, Cyboard Imprint, ZMK
+> Studio, `.keymap`/`west.yml`, or the `zmk-flask-modules`**, you are almost
+> certainly in the wrong directory — the session should be launched from
+> `~/ZMK-Flask` (shell alias `zmkflask`) so the correct docs + memory load.
+> The `flask-web` and `AdeptCompanion` apps are **shared** by both projects and
+> live at `~/flask-web` / `~/AdeptCompanion`. (Launch this project with `vialqmk`.)
+
 Status: built and working. This file is the editing contract for this
 keymap — read the relevant section before changing anything, and **run
 `keyboards/ploopyco/madromys/keymaps/vial/check.sh` after every edit**
