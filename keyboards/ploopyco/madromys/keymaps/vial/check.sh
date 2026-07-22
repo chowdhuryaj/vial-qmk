@@ -70,7 +70,19 @@ elif len(enum_names) > 64:
 else:
     print(f"  OK    {len(enum_names)}/64 custom keycode slots used, counts match")
 
-unhandled = [n for n in enum_names if not re.search(r"\bcase\s+" + re.escape(n) + r"\s*:", src)]
+def handled(name):
+    # Plain `case KC:`
+    if re.search(r"\bcase\s+" + re.escape(name) + r"\s*:", src):
+        return True
+    # GCC range case, `case GR1_TOG ... GR8_TOG:` — covers every enum entry
+    # between the two endpoints.
+    for lo, hi in re.findall(r"\bcase\s+([A-Za-z_]\w*)\s*\.\.\.\s*([A-Za-z_]\w*)\s*:", src):
+        if lo in enum_names and hi in enum_names:
+            if enum_names.index(lo) <= enum_names.index(name) <= enum_names.index(hi):
+                return True
+    return False
+
+unhandled = [n for n in enum_names if not handled(n)]
 if unhandled:
     print(f"  FAIL  no 'case {{kc}}:' in keymap.c for: {', '.join(unhandled)} (keycode would silently no-op)")
     ok_so_far = False

@@ -826,8 +826,9 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case DRG_INV:
             if (record->event.pressed) drag_scroll_toggle_inverted();
             return false;
-        // One explicit case per gesture toggle (not a `case A ... B` range) so
-        // check.sh's per-keycode handler-coverage grep keeps working.
+        // One explicit case per gesture toggle. A `case A ... B` range would
+        // also work (check.sh understands ranges) — these stay spelled out
+        // only because each one passes a different set index.
         case GR1_TOG:
             if (record->event.pressed) gesture_toggle_set(0);
             return false;
