@@ -69,12 +69,46 @@ flash_one() {
     return 0
 }
 
-echo "Guided flash: Adept + Svalboard left + Svalboard right."
+# Which boards to flash. No args = all three, as before. Each step BLOCKS
+# waiting for its bootloader drive and there is no way to skip one mid-run
+# (Ctrl-C aborts everything), so selecting up front is the only way to flash
+# a subset — e.g. after a Svalboard-only change.
+#   ./flash-all.sh              all three
+#   ./flash-all.sh sval         both Svalboard halves
+#   ./flash-all.sh left         one half
+#   ./flash-all.sh adept right  any combination
+TARGETS=("$@")
+if [ ${#TARGETS[@]} -eq 0 ]; then
+    TARGETS=(adept left right)
+fi
+
+want() {
+    for t in "${TARGETS[@]}"; do
+        case "$t" in
+            all) return 0 ;;
+            sval|svalboard) [ "$1" = "left" ] || [ "$1" = "right" ] && return 0 ;;
+            "$1") return 0 ;;
+        esac
+    done
+    return 1
+}
+
+for t in "${TARGETS[@]}"; do
+    case "$t" in
+        adept|left|right|sval|svalboard|all) ;;
+        *)
+            echo "Unknown target '$t'. Valid: adept, left, right, sval, all."
+            exit 1
+            ;;
+    esac
+done
+
+echo "Guided flash: ${TARGETS[*]}"
 echo "Order is up to you — each step waits for the next bootloader mount."
 
-flash_one "Ploopy Adept"      "$ADEPT_UF2"
-flash_one "Svalboard LEFT"    "$SVAL_L_UF2"
-flash_one "Svalboard RIGHT"   "$SVAL_R_UF2"
+want adept && flash_one "Ploopy Adept"   "$ADEPT_UF2"
+want left  && flash_one "Svalboard LEFT"  "$SVAL_L_UF2"
+want right && flash_one "Svalboard RIGHT" "$SVAL_R_UF2"
 
 echo
 echo "All three done. First boot re-seeds tunables (Adept EEPROM v12 / Sval"
