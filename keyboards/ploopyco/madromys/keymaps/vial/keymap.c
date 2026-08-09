@@ -732,15 +732,27 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     // Ball gestures track physical BTN1..BTN8 state, including the tap half
     // of layer-taps (LT(x, BTNn) resolves here with tap.count set). Tracked
     // before anything can consume the event so held state can't go stale.
+    // The module can also OWN the click: a gesture-configured button's press is
+    // withheld so a hold that becomes a gesture never clicks (the only way to
+    // stop a right-click's context menu, which opens on button DOWN). Return
+    // false when it does, or QMK sends the press we just withheld.
     {
-        uint16_t base = keycode;
+        uint16_t base       = keycode;
+        bool     deferrable = true;
         if ((keycode & 0xF000) == QK_LAYER_TAP && record->tap.count) {
             base = keycode & 0xFF;
+            // Withholding a tap-hold's tap half fights QMK's own tap-hold
+            // machinery. This base layer is built on LT(layer, BTNn), so in
+            // practice most buttons here pass straight through.
+            deferrable = false;
         } else if ((keycode & 0xE000) == QK_MOD_TAP && record->tap.count) {
-            base = keycode & 0xFF;
+            base       = keycode & 0xFF;
+            deferrable = false;
         }
         if (base >= MS_BTN1 && base <= MS_BTN8) { // KC_BTN aliases stop at 5
-            ball_gestures_on_button(base - MS_BTN1, record->event.pressed);
+            if (!ball_gestures_on_button(base - MS_BTN1, base, record->event.pressed, deferrable)) {
+                return false;
+            }
         }
     }
 
@@ -950,6 +962,7 @@ void housekeeping_task_user(void) {
     select_word_task();
     sentence_case_task();
     num_word_task();
+    ball_gestures_task(); // resolves a withheld click into a gesture on time
 }
 
 /* ---------------------------------------------------------------------------
