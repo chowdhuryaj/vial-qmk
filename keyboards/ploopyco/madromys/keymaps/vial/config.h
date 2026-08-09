@@ -111,7 +111,7 @@
 #define AUTO_MOUSE_TIME MAD_AUTOMOUSE_TIMEOUT_DEFAULT
 
 /* ---------------------------------------------------------------------------
- * Wheel chords (wheel_chords.c/.h, 2026-07-03)
+ * Ball gestures (ball_gestures.c/.h, 2026-07-03)
  *
  * Hold BTN1..BTN8 + move the ball → 8-direction gesture keycodes, one tap
  * per step of travel (pd_gestures math, button-gated). The click itself is
@@ -119,13 +119,13 @@
  * least one configured slot. Slots live in RAM + the EEPROM datablock,
  * edited over HID channel 0x1C.
  * ------------------------------------------------------------------------- */
-#define WHEEL_CHORDS_ENABLED_DEFAULT true
-#define WHEEL_CHORDS_STEP_DEFAULT 200
-#define WHEEL_CHORDS_STEP_MIN 50
-#define WHEEL_CHORDS_STEP_MAX 2000
+#define BALL_GESTURES_ENABLED_DEFAULT true
+#define BALL_GESTURES_STEP_DEFAULT 200
+#define BALL_GESTURES_STEP_MIN 50
+#define BALL_GESTURES_STEP_MAX 2000
 // Hold delay before capture engages (quick click-drag stays a normal drag).
-#define WHEEL_CHORDS_HOLD_MS_DEFAULT 200
-#define WHEEL_CHORDS_HOLD_MS_MAX 1000
+#define BALL_GESTURES_HOLD_MS_DEFAULT 200
+#define BALL_GESTURES_HOLD_MS_MAX 1000
 
 /* ---------------------------------------------------------------------------
  * OS-aware shortcuts (os_shortcuts.c/.h, 2026-07-03)

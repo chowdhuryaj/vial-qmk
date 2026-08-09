@@ -38,8 +38,8 @@ SRC += shared/sentence_case.c
 # Autoscroll (Ben White / Contour Shuttle model)
 SRC += shared/autoscroll.c
 
-# Wheel chords (button-held ball gestures, 2026-07-03)
-SRC += shared/wheel_chords.c
+# Ball gestures (button-held ball gestures, 2026-07-03)
+SRC += shared/ball_gestures.c
 
 # OS-aware editing shortcuts (2026-07-03). OS detection is a generic feature
 # (builddefs/generic_features.mk) — plain enable works, no hand-wiring needed

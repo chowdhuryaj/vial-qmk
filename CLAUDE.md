@@ -66,7 +66,7 @@ keycodes) and then runs the real build.
 | `keymaps/vial/shared/autoscroll.c/.h` | Hands-free continuous scroll (Ben White radiology AHK + Contour Shuttle jog model, added 2026-07-03). `ASC_JOG` = ball becomes jog wheel (deflection = speed, motion swallowed); `ASC_UP`/`ASC_DOWN` step ±9 speed levels through zero. Any other key press auto-exits. HID `0x1A`; 4 persisted tunables + live-state rescue value. **Gotcha: `AS_UP`/`AS_DOWN` collide with QMK core Auto Shift keycode aliases (keycodes.h:1526) — hence the `ASC_` prefix.** |
 | `keymaps/vial/shared/os_shortcuts.c/.h` | OS-aware Cut/Copy/Paste/Undo/Redo (2026-07-03): mac mode = ⌘ hotkeys, pc = ^; follows QMK OS detection (`OS_DETECTION_ENABLE`, a generic feature — plain enable works) unless pinned. HID `0x1D`. `process_detected_host_os_kb` override in keymap.c also mirrors detection into select word. |
 | `keymaps/vial/shared/pipeline_diag.c/.h` | Freeze diagnostic (2026-07-03): watermark of the largest gap between pointing-task passes, HID `0x1F` (GET reads, SET resets; uptime at `0x02`). Built to localize the reported random 1-2 s cursor freezes (firmware loop vs sensor/host). Flask shows it as the Mouse tab's "Health" module. |
-| `keymaps/vial/shared/wheel_chords.c/.h` | Button-held ball gestures (2026-07-03): hold BTN1..8 + roll → 8-direction keycodes, pd_gestures ratchet feel; click never suppressed, motion swallowed only while the held button has ≥1 slot. HID `0x1C`. Physical BTN state tracked in `process_record_user` incl. LT/MT tap halves. |
+| `keymaps/vial/shared/ball_gestures.c/.h` | Button-held ball gestures (2026-07-03; **renamed from `wheel_chords` 2026-08-09**): hold BTN1..8 + roll → 8-direction keycodes, pd_gestures ratchet feel; click never suppressed, motion swallowed only while the held button has ≥1 slot. HID `0x1C`. Physical BTN state tracked in `process_record_user` incl. LT/MT tap halves. **Two independent sides** since the rename (`ball_gestures_*(side, …)`, side 0 = left/only ball, side 1 = a second ball) — the Adept uses side 0 only; the Svalboard drives both. Every accessor takes a side index, so a call without one is pre-rename code. |
 | `keymaps/vial/shared/` | **Git submodule** (added 2026-07-04), not a plain subdir — see "Shared module submodule" section below. All 9 rows above live here now; edit them in place (the submodule checkout) or in the standalone `~/qmk-flask-modules` repo, never re-create a local copy directly in this keymap dir. |
 | `keymaps/vial/check.sh` | Validator. Run after every edit. |
 | `~/AdeptCompanion/` (outside this repo) | **"Flask"** — the macOS SwiftUI companion app (SPM: `AdeptCore` lib + `Flask` executable target; dir name kept). Speaks the raw HID protocol below **and** (since 2026-07-02) the stock VIA+Vial protocol — it is a full Vial editor (keymap/macros/tap dance/combos/gestures/mouse chords/QMK settings/matrix tester/unlock), replacing the Vial GUI for this device. UI is a Swift port of Pipette's design (darakuneko/pipette-desktop). `AdeptCore/KeycodeDB.swift`'s `customKeys` mirrors the custom-keycode enum — THE keycode rule applies to it too. Gotcha: Vial dynamic-entry SET frames are `[0xFE,0x0D,op,idx,entry…]` — entry at byte 4, NO pad byte (a pad byte shipped garbage tap dances once). `swift run` to launch from source, `./make-app.sh` to build `Flask.app`. |
@@ -253,9 +253,10 @@ x100 [25,400], `0x03` jog deadzone [0,200], `0x04` jog range [50,2000],
 persisted) · **v6 (2026-07-03):** `0x1B` auto-mouse (`0x01` enabled, `0x02`
 timeout ms [100,5000], `0x03` threshold counts [0,60]; core feature hand-wired
 in rules.mk — plain `POINTING_DEVICE_AUTO_MOUSE_ENABLE = yes` is inert in this
-fork) + `0x1C` wheel chords (`0x01` enabled, `0x02` step [50,2000], slots
-`0x10 + button*8 + dir`, 8 buttons × 8 dirs, raw keycodes, fires via
-tap_code16) · **v7 (2026-07-03):** `0x1D` OS-aware shortcuts (`0x01` follow
+fork) + `0x1C` ball gestures (was "wheel chords"; `0x01` enabled, `0x02` step
+[50,2000], slots `0x10 + button*8 + dir`, 8 buttons × 8 dirs, raw keycodes,
+fires via tap_code16. The Svalboard mirrors these ids on `0x27` for its second
+ball; the Adept has one ball and does not serve `0x27`) · **v7 (2026-07-03):** `0x1D` OS-aware shortcuts (`0x01` follow
 detection, `0x02` mac/pc mode — SET also mirrors into select word, `0x03`
 detected os_variant_t RO; keycodes OS_CUT/OS_COPY/OS_PSTE/OS_UNDO/OS_REDO,
 os_shortcuts.c + OS_DETECTION_ENABLE) + `0x1F` freeze diagnostic (`0x01`
@@ -327,7 +328,7 @@ copy-pasting.
 
 **Current shared set (12 pairs, 24 files — v1.1.0, 2026-07-04):**
 `os_shortcuts`, `pipeline_diag`, `pd_accel`, `pointing_device_smoothing`,
-`select_word`, `sentence_case`, `custom_shift_keys`, `wheel_chords`,
+`select_word`, `sentence_case`, `custom_shift_keys`, `ball_gestures`,
 `autoscroll`, **plus (moved in for Sval parity)** `pd_gestures`,
 `wiggle_ball` (rewritten as a pure observer: `wiggle_ball_observe()` +
 `wiggle_ball_triggered()`, fed raw deltas FIRST in the pipeline), `num_word`.

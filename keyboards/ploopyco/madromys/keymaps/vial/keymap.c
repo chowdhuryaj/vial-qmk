@@ -31,7 +31,7 @@
 #include "shared/select_word.h"
 #include "shared/sentence_case.h"
 #include "shared/autoscroll.h"
-#include "shared/wheel_chords.h"
+#include "shared/ball_gestures.h"
 #include "shared/os_shortcuts.h"
 #include "os_detection.h"
 #include "shared/pipeline_diag.h"
@@ -334,15 +334,15 @@ typedef struct __attribute__((packed)) {
     uint8_t  am_enabled;
     uint16_t am_timeout_ms;
     uint8_t  am_threshold;
-    // Wheel chords (v7): [button][direction] gesture keycodes + tunables.
-    uint8_t  wc_enabled;
-    uint16_t wc_step;
-    uint16_t wc_table[WHEEL_CHORDS_BUTTONS][WHEEL_CHORDS_DIRECTIONS];
+    // Ball gestures (v7): [button][direction] gesture keycodes + tunables.
+    uint8_t  bg_enabled;
+    uint16_t bg_step;
+    uint16_t bg_table[BALL_GESTURES_BUTTONS][BALL_GESTURES_DIRECTIONS];
     // OS-aware shortcuts (v8): follow-detection switch + pinned mac/pc mode.
     uint8_t  os_follow;
     uint8_t  os_mac;
-    // Wheel chords hold delay (v9): ms held before capture engages.
-    uint16_t wc_hold_ms;
+    // Ball gestures hold delay (v9): ms held before capture engages.
+    uint16_t bg_hold_ms;
     // Per-combo layer masks (v10): bit N set = combo may fire while layer N
     // is the highest active layer. 0xFFFF (default) = all layers.
     uint16_t combo_layer_masks[VIAL_COMBO_ENTRIES];
@@ -541,12 +541,12 @@ static void mad_config_set_defaults(void) {
         .am_enabled           = MAD_AUTOMOUSE_ENABLED_DEFAULT ? 1 : 0,
         .am_timeout_ms        = MAD_AUTOMOUSE_TIMEOUT_DEFAULT,
         .am_threshold         = MAD_AUTOMOUSE_THRESHOLD_DEFAULT,
-        .wc_enabled           = WHEEL_CHORDS_ENABLED_DEFAULT ? 1 : 0,
-        .wc_step              = WHEEL_CHORDS_STEP_DEFAULT,
-        // wc_table zero-fills (all slots empty) via the struct literal.
+        .bg_enabled           = BALL_GESTURES_ENABLED_DEFAULT ? 1 : 0,
+        .bg_step              = BALL_GESTURES_STEP_DEFAULT,
+        // bg_table zero-fills (all slots empty) via the struct literal.
         .os_follow            = OS_SHORTCUTS_FOLLOW_DEFAULT ? 1 : 0,
         .os_mac               = OS_SHORTCUTS_MAC_DEFAULT ? 1 : 0,
-        .wc_hold_ms           = WHEEL_CHORDS_HOLD_MS_DEFAULT,
+        .bg_hold_ms           = BALL_GESTURES_HOLD_MS_DEFAULT,
         .dpi_cpi              = 0, // 0 = legacy table index drives the sensor
         .wb_action            = WIGGLE_BALL_ACTION_DEFAULT,
         .wb_gesture_set       = WIGGLE_BALL_GESTURE_SET_DEFAULT,
@@ -610,10 +610,10 @@ static void mad_config_apply(void) {
     set_autoscroll_jog_range(mad_config.as_jog_range);
     set_autoscroll_stop_on_key(mad_config.as_stop_on_key != 0);
     mad_automouse_apply();
-    wheel_chords_set_enabled(mad_config.wc_enabled != 0);
-    wheel_chords_set_step(mad_config.wc_step);
-    wheel_chords_set_hold_ms(mad_config.wc_hold_ms);
-    memcpy(wheel_chords_table(), mad_config.wc_table, sizeof(mad_config.wc_table));
+    ball_gestures_set_enabled(0, mad_config.bg_enabled != 0);
+    ball_gestures_set_step(0, mad_config.bg_step);
+    ball_gestures_set_hold_ms(0, mad_config.bg_hold_ms);
+    memcpy(ball_gestures_table(0), mad_config.bg_table, sizeof(mad_config.bg_table));
     // Order matters: set the pinned mode first, then follow — enabling
     // follow re-applies any detection that fired before this ran.
     os_shortcuts_set_mac(mad_config.os_mac != 0);
@@ -629,9 +629,9 @@ static void mad_config_apply(void) {
 /* ---------------------------------------------------------------------------
  * Pointing device pipeline
  *
- * wheel chords -> gestures -> smoothing -> wiggle -> drag scroll -> accel
+ * ball gestures -> gestures -> smoothing -> wiggle -> drag scroll -> accel
  *
- * Wheel chords and gestures count RAW sensor travel — they run before
+ * Ball gestures and gestures count RAW sensor travel — they run before
  * smoothing (2026-07-04 fix; smoothing used to run first, and its EMA smears
  * a flick's motion across later frames, so ratchet fires kept arriving AFTER
  * the ball stopped — gesture/chord output felt batched instead of live).
@@ -649,9 +649,9 @@ report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
     // shake works both to engage its action and to escape one (v10; the
     // module is a pure detector now — wiggle_ball_triggered() below acts).
     wiggle_ball_observe(mouse_report.x, mouse_report.y);
-    // Wheel chords before gestures: a held button is a more deliberate
+    // Ball gestures before gestures: a held button is a more deliberate
     // intent than a latched gesture set, so it wins the motion.
-    mouse_report = wheel_chords_apply(mouse_report);
+    mouse_report = ball_gestures_apply(0, mouse_report);
     mouse_report = pd_gestures_apply(mouse_report);
     mouse_report = pointing_device_smoothing_apply(mouse_report);
     // Autoscroll before drag scroll: jog mode swallows raw ball motion the
@@ -729,7 +729,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (keycode != NUMWORD) {
         num_word_on_record(keycode, record);
     }
-    // Wheel chords track physical BTN1..BTN8 state, including the tap half
+    // Ball gestures track physical BTN1..BTN8 state, including the tap half
     // of layer-taps (LT(x, BTNn) resolves here with tap.count set). Tracked
     // before anything can consume the event so held state can't go stale.
     {
@@ -740,7 +740,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             base = keycode & 0xFF;
         }
         if (base >= MS_BTN1 && base <= MS_BTN8) { // KC_BTN aliases stop at 5
-            wheel_chords_on_button(base - MS_BTN1, record->event.pressed);
+            ball_gestures_on_button(base - MS_BTN1, record->event.pressed);
         }
     }
 
@@ -1207,13 +1207,13 @@ enum mad_hid_numword_value {
 };
 
 enum mad_hid_wheelchords_value {
-    mad_wc_enabled_id = 0x01,
-    mad_wc_step_id    = 0x02, // counts per gesture fire
-    mad_wc_hold_ms_id = 0x03, // v8: ms held before capture engages (0 = immediate)
+    mad_bg_enabled_id = 0x01,
+    mad_bg_step_id    = 0x02, // counts per gesture fire
+    mad_bg_hold_ms_id = 0x03, // v8: ms held before capture engages (0 = immediate)
     // Slot keycodes: 0x10 + button*8 + dir (button 0..7 = BTN1..BTN8,
     // dir = internal pd_gestures order E SE S SW W NW N NE). Raw QMK
     // keycode payload, unclamped — what fires is limited by tap_code16.
-    mad_wc_slot_base  = 0x10,
+    mad_bg_slot_base  = 0x10,
 };
 
 enum mad_hid_os_value {
@@ -1419,23 +1419,23 @@ static bool mad_hid_get(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
 
         case mad_ch_wheelchords: {
-            if (value_id == mad_wc_enabled_id) {
-                mad_hid_write_u16(payload, wheel_chords_get_enabled() ? 1 : 0);
+            if (value_id == mad_bg_enabled_id) {
+                mad_hid_write_u16(payload, ball_gestures_get_enabled(0) ? 1 : 0);
                 return true;
             }
-            if (value_id == mad_wc_step_id) {
-                mad_hid_write_u16(payload, wheel_chords_get_step());
+            if (value_id == mad_bg_step_id) {
+                mad_hid_write_u16(payload, ball_gestures_get_step(0));
                 return true;
             }
-            if (value_id == mad_wc_hold_ms_id) {
-                mad_hid_write_u16(payload, wheel_chords_get_hold_ms());
+            if (value_id == mad_bg_hold_ms_id) {
+                mad_hid_write_u16(payload, ball_gestures_get_hold_ms(0));
                 return true;
             }
-            if (value_id >= mad_wc_slot_base && value_id < mad_wc_slot_base + WHEEL_CHORDS_BUTTONS * 8) {
-                uint8_t slot = value_id - mad_wc_slot_base;
+            if (value_id >= mad_bg_slot_base && value_id < mad_bg_slot_base + BALL_GESTURES_BUTTONS * 8) {
+                uint8_t slot = value_id - mad_bg_slot_base;
                 uint8_t btn = slot / 8, dir = slot % 8;
-                if (dir < WHEEL_CHORDS_DIRECTIONS) {
-                    mad_hid_write_u16(payload, wheel_chords_table()[btn][dir]);
+                if (dir < BALL_GESTURES_DIRECTIONS) {
+                    mad_hid_write_u16(payload, ball_gestures_table(0)[btn][dir]);
                     return true;
                 }
             }
@@ -1747,28 +1747,28 @@ static bool mad_hid_set(uint8_t channel, uint8_t value_id, uint8_t *payload) {
             }
 
         case mad_ch_wheelchords: {
-            if (value_id == mad_wc_enabled_id) {
-                wheel_chords_set_enabled(mad_hid_read_u16(payload) != 0);
-                mad_hid_write_u16(payload, wheel_chords_get_enabled() ? 1 : 0);
+            if (value_id == mad_bg_enabled_id) {
+                ball_gestures_set_enabled(0, mad_hid_read_u16(payload) != 0);
+                mad_hid_write_u16(payload, ball_gestures_get_enabled(0) ? 1 : 0);
                 return true;
             }
-            if (value_id == mad_wc_step_id) {
-                wheel_chords_set_step(mad_hid_read_u16(payload));
-                mad_hid_write_u16(payload, wheel_chords_get_step());
+            if (value_id == mad_bg_step_id) {
+                ball_gestures_set_step(0, mad_hid_read_u16(payload));
+                mad_hid_write_u16(payload, ball_gestures_get_step(0));
                 return true;
             }
-            if (value_id == mad_wc_hold_ms_id) {
-                wheel_chords_set_hold_ms(mad_hid_read_u16(payload));
-                mad_hid_write_u16(payload, wheel_chords_get_hold_ms());
+            if (value_id == mad_bg_hold_ms_id) {
+                ball_gestures_set_hold_ms(0, mad_hid_read_u16(payload));
+                mad_hid_write_u16(payload, ball_gestures_get_hold_ms(0));
                 return true;
             }
-            if (value_id >= mad_wc_slot_base && value_id < mad_wc_slot_base + WHEEL_CHORDS_BUTTONS * 8) {
-                uint8_t slot = value_id - mad_wc_slot_base;
+            if (value_id >= mad_bg_slot_base && value_id < mad_bg_slot_base + BALL_GESTURES_BUTTONS * 8) {
+                uint8_t slot = value_id - mad_bg_slot_base;
                 uint8_t btn = slot / 8, dir = slot % 8;
-                if (dir < WHEEL_CHORDS_DIRECTIONS) {
+                if (dir < BALL_GESTURES_DIRECTIONS) {
                     // Raw keycode, unclamped (same policy as gesture slots);
                     // what fires is limited by tap_code16.
-                    wheel_chords_table()[btn][dir] = mad_hid_read_u16(payload);
+                    ball_gestures_table(0)[btn][dir] = mad_hid_read_u16(payload);
                     return true;
                 }
             }
@@ -1884,10 +1884,10 @@ static bool mad_hid_save(uint8_t channel) {
             mad_config.nw_layer   = num_word_get_layer();
             break;
         case mad_ch_wheelchords:
-            mad_config.wc_enabled = wheel_chords_get_enabled() ? 1 : 0;
-            mad_config.wc_step    = wheel_chords_get_step();
-            mad_config.wc_hold_ms = wheel_chords_get_hold_ms();
-            memcpy(mad_config.wc_table, wheel_chords_table(), sizeof(mad_config.wc_table));
+            mad_config.bg_enabled = ball_gestures_get_enabled(0) ? 1 : 0;
+            mad_config.bg_step    = ball_gestures_get_step(0);
+            mad_config.bg_hold_ms = ball_gestures_get_hold_ms(0);
+            memcpy(mad_config.bg_table, ball_gestures_table(0), sizeof(mad_config.bg_table));
             break;
         case mad_ch_os:
             mad_config.os_follow = os_shortcuts_get_follow() ? 1 : 0;
