@@ -1,16 +1,40 @@
-# Ploopy Adept Vial-QMK Firmware Project
+# RETIRED — Ploopy Adept + NLKB16 Vial-QMK (reference only)
 
-> **WHICH PROJECT AM I IN?** This is the **QMK/Vial** fork (C firmware for the
-> Ploopy Adept, Svalboard, and NLKB16). The **ZMK** port (Cyboard Imprint,
-> Zephyr/devicetree) is a **separate project at `~/ZMK-Flask`** with its own
-> CLAUDE.md and memory. If the user asks about **ZMK, Cyboard Imprint, ZMK
-> Studio, `.keymap`/`west.yml`, or the `zmk-flask-modules`**, you are almost
-> certainly in the wrong directory — the session should be launched from
-> `~/ZMK-Flask` (shell alias `zmkflask`) so the correct docs + memory load.
+> ## ⛔ THIS REPO IS RETIRED (2026-08-14). DO NOT DO FIRMWARE WORK HERE.
+>
+> Both devices this tree served — the **Ploopy Adept** (`madromys`) and the
+> **NLOFIN NLKB16** — are out of use, and Flask app support for both was removed
+> the same day. The keymap directories are still on disk **deliberately**: the
+> git history is the only copy of the hand-reconstructed board files for the
+> headless ploopyco family and the NLKB16-02. See `RETIRED.md`.
+>
+> **The live QMK firmware is `~/svalboard-vial-qmk` (branch `flask-port`)** —
+> Svalboard, `keyboards/svalboard/keymaps/flask/`, with its own CLAUDE.md and
+> `FLASK-PLAN.md`. As of **2026-08-18** it is protocol **23**, EEPROM datablock
+> **v18**, and flashed + working on hardware.
+>
+> Two things still legitimately live here, which is why sessions are still
+> launched from this directory (`vialqmk`):
+> - **`flash-all.sh`** — the guided UF2 flasher. Run it as
+>   `./flash-all.sh sval`; the no-arg form blocks forever on the retired Adept.
+> - **`.claude/skills/`** — `flask-ecosystem` (the live cross-repo workflow),
+>   `madromys` (retired), `hid-remapper-vial`.
+>
+> If the ask is about the Svalboard, the shared modules, or either Flask client,
+> read `.claude/skills/flask-ecosystem/SKILL.md` and work in the repos it names.
+> Everything below this banner describes the **retired Adept keymap** and is
+> historical reference — accurate as of 2026-08-09, not a current target.
+
+> **WHICH PROJECT AM I IN?** This is the **QMK/Vial** fork (C firmware). The
+> **ZMK** port (Cyboard Imprint, Zephyr/devicetree) is a **separate project at
+> `~/ZMK-Flask`** with its own CLAUDE.md and memory. If the user asks about
+> **ZMK, Cyboard Imprint, ZMK Studio, `.keymap`/`west.yml`, or the
+> `zmk-flask-modules`**, you are almost certainly in the wrong directory — the
+> session should be launched from `~/ZMK-Flask` (shell alias `zmkflask`).
 > The `flask-web` and `AdeptCompanion` apps are **shared** by both projects and
-> live at `~/flask-web` / `~/AdeptCompanion`. (Launch this project with `vialqmk`.)
+> live at `~/flask-web` / `~/AdeptCompanion`.
 
-Status: built and working. This file is the editing contract for this
+Status: RETIRED — the text below was the editing contract for this
 keymap — read the relevant section before changing anything, and **run
 `keyboards/ploopyco/madromys/keymaps/vial/check.sh` after every edit**
 before calling a change done. It catches the mistake classes a clean
