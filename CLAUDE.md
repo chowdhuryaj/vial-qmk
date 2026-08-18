@@ -13,15 +13,24 @@
 > `FLASK-PLAN.md`. As of **2026-08-18** it is protocol **23**, EEPROM datablock
 > **v18**, and flashed + working on hardware.
 >
-> Two things still legitimately live here, which is why sessions are still
-> launched from this directory (`vialqmk`):
-> - **`flash-all.sh`** — the guided UF2 flasher. Run it as
->   `./flash-all.sh sval`; the no-arg form blocks forever on the retired Adept.
-> - **`.claude/skills/`** — `flask-ecosystem` (the live cross-repo workflow),
->   `madromys` (retired), `hid-remapper-vial`.
+> **Launch Svalboard sessions from `~/svalboard-vial-qmk`, not here.** The
+> `flask-ecosystem` skill and the current handoffs moved there on 2026-08-18 so
+> they load in the repo the work is in.
+>
+> What still legitimately lives in this tree:
+> - **`flash-all.sh`** — the guided UF2 flasher, still the way to flash the
+>   Svalboard. Run it as `./flash-all.sh sval`; the no-arg form blocks forever
+>   waiting on the retired Adept.
+> - **`.claude/skills/madromys`** — retired, kept next to the Adept history it
+>   documents.
+> - **`.claude/skills/hid-remapper-vial`** — belongs to `~/hid-remapper`
+>   (AlooMapper), not to either QMK tree. Misfiled here; move it if it starts
+>   mattering.
+> - **`.claude/handoffs/`** — the Adept and NLKB16 history.
 >
 > If the ask is about the Svalboard, the shared modules, or either Flask client,
-> read `.claude/skills/flask-ecosystem/SKILL.md` and work in the repos it names.
+> work in `~/svalboard-vial-qmk` and read its
+> `.claude/skills/flask-ecosystem/SKILL.md`.
 > Everything below this banner describes the **retired Adept keymap** and is
 > historical reference — accurate as of 2026-08-09, not a current target.
 
